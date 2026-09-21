@@ -93,6 +93,11 @@ def main(argv: list[str] | None = None) -> int:
         result = agent.run(prompt)
     except HarnessError as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
+        # A failed run is the one most worth reading back, so persist whatever
+        # the loop got through before it raised.
+        if config.transcript_dir and exc.partial is not None:
+            path = save_transcript(exc.partial, config.transcript_dir, config.model, prompt)
+            print(f"partial transcript: {path}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         print("\ninterrupted", file=sys.stderr)

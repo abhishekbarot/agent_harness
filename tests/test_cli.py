@@ -132,3 +132,49 @@ class TestOutput:
         payload = json.loads(files[0].read_text())
         assert payload["prompt"] == "question"
         assert payload["final_text"] == "answer"
+
+
+class TestTranscriptOnFailure:
+    """Regression: a failed run must still leave a transcript behind."""
+
+    def test_partial_transcript_is_written_when_the_run_raises(
+        self, stub_agent, tmp_path, capsys
+    ):
+        from conftest import FakeMessage, FakeToolUse
+
+        stub_agent(
+            [
+                tool_message("list_dir", {"path": "."}, "toolu_1"),
+                FakeMessage(
+                    content=[FakeToolUse("write_file", {"path": "x", "content": "y"})],
+                    stop_reason="max_tokens",
+                ),
+            ]
+        )
+        target = tmp_path / "runs"
+
+        code = cli.main(
+            ["--permission-mode", "auto", "--transcript-dir", str(target), "go"]
+        )
+
+        assert code == 1
+        files = list(target.glob("run-*.json"))
+        assert len(files) == 1, "the failing run left no transcript"
+        payload = json.loads(files[0].read_text())
+        assert payload["summary"]["stop_reason"] == "error"
+        assert payload["tool_calls"][0]["name"] == "list_dir"
+        assert "partial transcript" in capsys.readouterr().err
+
+    def test_no_transcript_dir_means_no_write_and_no_crash(self, stub_agent, capsys):
+        from conftest import FakeMessage, FakeToolUse
+
+        stub_agent(
+            [
+                FakeMessage(
+                    content=[FakeToolUse("write_file", {"path": "x", "content": "y"})],
+                    stop_reason="max_tokens",
+                )
+            ]
+        )
+        assert cli.main(["--permission-mode", "auto", "go"]) == 1
+        assert "LoopError" in capsys.readouterr().err

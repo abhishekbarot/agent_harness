@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from agent_harness.errors import ToolError
-from agent_harness.tools.base import Risk, ToolRegistry, ToolResult
+from agent_harness.tools.base import Risk, Tool, ToolRegistry, ToolResult
 from agent_harness.tools.builtin import (
     ListDirTool,
     ReadFileTool,
@@ -167,3 +167,78 @@ def test_tool_result_block_shape():
 
     bad = ToolResult("broke", is_error=True).to_block("toolu_9")
     assert bad["is_error"] is True
+
+
+class TestSearchDotfileFiltering:
+    """Regression: the dotfile filter must be relative to the workspace root."""
+
+    def test_finds_matches_when_the_workspace_sits_under_a_dot_directory(self, tmp_path):
+        root = tmp_path / ".agent" / "project"
+        root.mkdir(parents=True)
+        (root / "b.py").write_text("def parse_config(path):\n    return {}\n")
+
+        result = SearchFilesTool(root.resolve()).run(pattern="parse_config")
+        assert result.metadata["count"] == 1, "a dotted parent must not hide every file"
+
+    def test_still_skips_dotfiles_inside_the_workspace(self, workspace):
+        (workspace / ".hidden").mkdir()
+        (workspace / ".hidden" / "secret.py").write_text("TOKEN = 'xyz'\n")
+        (workspace / ".envrc").write_text("TOKEN = 'xyz'\n")
+
+        result = SearchFilesTool(workspace).run(pattern="TOKEN")
+        assert result.metadata["count"] == 0
+
+
+class TestCommandTimeoutBounds:
+    """Regression: a model-supplied timeout must not outlive the run's ceilings."""
+
+    def test_null_means_the_default(self, workspace):
+        assert not RunCommandTool(workspace).run(command="true", timeout=None).is_error
+
+    def test_absurd_timeout_is_capped(self, workspace):
+        from agent_harness.tools.builtin import MAX_COMMAND_TIMEOUT_SECONDS, _clamp_timeout
+
+        assert _clamp_timeout(86_400) == MAX_COMMAND_TIMEOUT_SECONDS
+
+    @pytest.mark.parametrize("bad", [0, -5])
+    def test_non_positive_timeout_is_rejected(self, workspace, bad):
+        with pytest.raises(ToolError, match="greater than zero"):
+            RunCommandTool(workspace).run(command="true", timeout=bad)
+
+    @pytest.mark.parametrize("bad", ["30", 1.5, True])
+    def test_non_integer_timeout_is_rejected(self, workspace, bad):
+        with pytest.raises(ToolError, match="must be an integer"):
+            RunCommandTool(workspace).run(command="true", timeout=bad)
+
+
+class TestStrictSchemaInvariant:
+    """Strict tool use wants every declared property listed in `required`."""
+
+    def test_optional_arguments_are_nullable_rather_than_omitted(self, workspace):
+        for schema in ToolRegistry(default_tools(workspace)).to_api_schemas():
+            props = set(schema["input_schema"].get("properties", {}))
+            required = set(schema["input_schema"].get("required", []))
+            assert props == required, f"{schema['name']} would be rejected under strict mode"
+
+    def test_a_tool_that_breaks_the_invariant_is_caught_at_registration(self):
+        class Sloppy(Tool):
+            name = "sloppy"
+            description = "leaves an optional property out of required"
+
+            @property
+            def input_schema(self):
+                return {
+                    "type": "object",
+                    "properties": {"a": {"type": "string"}, "b": {"type": "string"}},
+                    "required": ["a"],
+                }
+
+            def run(self, **kwargs):
+                return ToolResult("ok")
+
+        with pytest.raises(ValueError, match="outside 'required'"):
+            Sloppy().to_api_schema()
+
+    def test_nullable_optionals_are_accepted_at_runtime(self, workspace):
+        assert ListDirTool(workspace).run(path=None).metadata["count"] > 0
+        assert SearchFilesTool(workspace).run(pattern="alpha", glob=None).metadata["count"] == 1

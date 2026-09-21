@@ -241,26 +241,39 @@ def run_case(
     """Run one case in a throwaway workspace and grade the outcome."""
     workspace = Path(tempfile.mkdtemp(prefix=f"eval-{case.id}-"))
     try:
-        for rel, content in case.files.items():
-            target = workspace / rel
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content, encoding="utf-8")
-
-        case_config = Config(
-            **{
-                **{
-                    f.name: getattr(config, f.name)
-                    for f in config.__dataclass_fields__.values()
-                },
-                "workspace": workspace,
-                "permission_mode": case.permission_mode,
-            }
-        )
-        agent = (agent_factory or Agent)(case_config)
-
+        # Everything here can fail on malformed case data or a transport error.
+        # A suite run costs real money, so one bad case is recorded and the rest
+        # still run -- discarding results already paid for helps nobody.
+        # KeyboardInterrupt is a BaseException and still aborts the suite.
         try:
+            for rel, content in case.files.items():
+                target = workspace / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+
+            case_config = Config(
+                **{
+                    **{
+                        f.name: getattr(config, f.name)
+                        for f in config.__dataclass_fields__.values()
+                    },
+                    "workspace": workspace,
+                    "permission_mode": case.permission_mode,
+                }
+            )
+            agent = (agent_factory or Agent)(case_config)
             result = agent.run(case.prompt)
         except HarnessError as exc:
+            partial = getattr(exc, "partial", None)
+            return CaseResult(
+                case.id,
+                passed=False,
+                error=f"{type(exc).__name__}: {exc}",
+                usage=partial.usage if partial else Usage(),
+                tool_calls=len(partial.tool_calls) if partial else 0,
+            )
+        except Exception as exc:  # noqa: BLE001 - keep the suite alive
+            log.exception("eval case raised", extra={"case": case.id})
             return CaseResult(case.id, passed=False, error=f"{type(exc).__name__}: {exc}")
 
         checks = []

@@ -216,3 +216,72 @@ class TestReport:
 
         assert "[PASS] only" in rendered
         assert "1/1 passed (100%)" in rendered
+
+
+class TestSuiteResilience:
+    """A suite run costs money; one bad case must not discard the rest."""
+
+    def test_a_malformed_case_does_not_kill_the_suite(self, base_config):
+        cases = [
+            EvalCase(id="good-1", prompt="a", checks=[{"type": "completed"}]),
+            EvalCase(id="bad-mode", prompt="b", permission_mode="nonsense", checks=[]),
+            EvalCase(id="good-2", prompt="c", checks=[{"type": "completed"}]),
+        ]
+        report = run_suite(cases, base_config, factory([text_message("done")]))
+
+        assert report.total == 3
+        assert report.passed == 2
+        bad = next(r for r in report.results if r.case_id == "bad-mode")
+        assert bad.error is not None
+        assert "ConfigError" in bad.error
+
+    def test_an_sdk_exception_is_recorded_not_propagated(self, base_config):
+        """Transport errors are deliberately unwrapped, so the runner must catch them."""
+
+        class Exploding:
+            def create(self, **kwargs):
+                raise RuntimeError("connection reset by peer")
+
+        def build(config):
+            return Agent(config, backend=Exploding())
+
+        cases = [
+            EvalCase(id="boom", prompt="a", checks=[{"type": "completed"}]),
+            EvalCase(id="after", prompt="b", checks=[{"type": "completed"}]),
+        ]
+        report = run_suite(
+            cases,
+            base_config,
+            lambda c: build(c) if c.workspace.name.startswith("eval-boom") else Agent(
+                c, backend=ScriptedBackend([text_message("done")])
+            ),
+        )
+
+        assert report.total == 2
+        boom = next(r for r in report.results if r.case_id == "boom")
+        assert "RuntimeError" in boom.error
+        assert next(r for r in report.results if r.case_id == "after").passed
+
+    def test_a_failed_case_still_reports_what_it_spent(self, base_config):
+        from conftest import FakeMessage, FakeToolUse
+
+        cases = [EvalCase(id="truncated", prompt="a", checks=[{"type": "completed"}])]
+        report = run_suite(
+            cases,
+            base_config,
+            factory(
+                [
+                    FakeMessage(
+                        content=[FakeToolUse("write_file", {"path": "x", "content": "y"})],
+                        stop_reason="max_tokens",
+                    )
+                ]
+            ),
+        )
+        result = report.results[0]
+
+        assert not result.passed
+        assert "LoopError" in result.error
+        # The turn was billed, so the report must not show it as free.
+        assert result.usage.turns == 1
+        assert report.total_cost_usd() > 0

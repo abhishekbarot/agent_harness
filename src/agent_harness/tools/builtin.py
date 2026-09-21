@@ -22,6 +22,9 @@ MAX_READ_BYTES = 256_000
 MAX_OUTPUT_CHARS = 30_000
 MAX_SEARCH_MATCHES = 200
 COMMAND_TIMEOUT_SECONDS = 120
+# A ceiling on the model-supplied timeout. Without one, a single tool call can
+# outlive every turn and cost ceiling the harness has.
+MAX_COMMAND_TIMEOUT_SECONDS = 600
 
 
 def _resolve_within(root: Path, candidate: str) -> Path:
@@ -155,12 +158,12 @@ class ListDirTool(Tool):
             "type": "object",
             "properties": {
                 "path": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "description": "Directory path relative to the workspace root. "
-                    "Defaults to the root itself.",
+                    "Pass null for the root itself.",
                 }
             },
-            "required": [],
+            "required": ["path"],
         }
 
     def run(self, **kwargs: Any) -> ToolResult:
@@ -199,12 +202,12 @@ class SearchFilesTool(Tool):
             "properties": {
                 "pattern": {"type": "string", "description": "Python regular expression."},
                 "glob": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "description": "Glob restricting which files are searched, e.g. '**/*.py'. "
-                    "Defaults to all files.",
+                    "Pass null to search all files.",
                 },
             },
-            "required": ["pattern"],
+            "required": ["pattern", "glob"],
         }
 
     def run(self, **kwargs: Any) -> ToolResult:
@@ -220,7 +223,12 @@ class SearchFilesTool(Tool):
         for path in sorted(self.root.glob(kwargs.get("glob") or "**/*")):
             if len(matches) >= MAX_SEARCH_MATCHES:
                 break
-            if not path.is_file() or any(p.startswith(".") for p in path.parts):
+            if not path.is_file():
+                continue
+            # Skip dotfiles by their path *relative to the workspace*. Testing
+            # the absolute path would skip everything whenever the workspace
+            # itself sits under a dot-directory (~/.agent/project).
+            if any(part.startswith(".") for part in path.relative_to(self.root).parts):
                 continue
             # A glob can still reach outside the root via a symlinked directory.
             if not path.resolve().is_relative_to(self.root):
@@ -263,12 +271,13 @@ class RunCommandTool(Tool):
             "properties": {
                 "command": {"type": "string", "description": "Shell command to run."},
                 "timeout": {
-                    "type": "integer",
+                    "type": ["integer", "null"],
                     "description": f"Seconds before the command is killed "
-                    f"(default {COMMAND_TIMEOUT_SECONDS}).",
+                    f"(default {COMMAND_TIMEOUT_SECONDS}, max "
+                    f"{MAX_COMMAND_TIMEOUT_SECONDS}). Pass null for the default.",
                 },
             },
-            "required": ["command"],
+            "required": ["command", "timeout"],
         }
 
     def run(self, **kwargs: Any) -> ToolResult:
@@ -284,7 +293,7 @@ class RunCommandTool(Tool):
             if pattern.lower() in lowered:
                 raise ToolError(f"command blocked by policy (matched {pattern!r})")
 
-        timeout = kwargs.get("timeout") or COMMAND_TIMEOUT_SECONDS
+        timeout = _clamp_timeout(kwargs.get("timeout"))
         try:
             proc = subprocess.run(
                 command,
@@ -311,6 +320,21 @@ class RunCommandTool(Tool):
             is_error=proc.returncode != 0,
             metadata={"exit_code": proc.returncode, "command": command},
         )
+
+
+def _clamp_timeout(raw: Any) -> int:
+    """Validate and bound a model-supplied timeout.
+
+    ``None`` means "use the default". Anything else must be a positive integer,
+    and is capped so one tool call cannot outlive the whole run.
+    """
+    if raw is None:
+        return COMMAND_TIMEOUT_SECONDS
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        raise ToolError("timeout must be an integer number of seconds, or null")
+    if raw <= 0:
+        raise ToolError("timeout must be greater than zero")
+    return min(raw, MAX_COMMAND_TIMEOUT_SECONDS)
 
 
 def default_tools(root: Path, denied_commands: tuple[str, ...] = ()) -> list[Tool]:

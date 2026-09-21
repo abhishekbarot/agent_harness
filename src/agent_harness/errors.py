@@ -7,9 +7,25 @@ retryable from non-retryable API failures should catch the SDK's own typed class
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:  # pragma: no cover - import cycle at runtime
+    from .loop import RunResult
+
 
 class HarnessError(Exception):
-    """Base class for every error raised by the harness itself."""
+    """Base class for every error raised by the harness itself.
+
+    ``partial`` carries the run as it stood when the failure happened, when the
+    error was raised from inside the agent loop. A failed run is usually the
+    one you most want to read back, so the transcript must survive the raise.
+    """
+
+    partial: RunResult | None = None
+
+    def __init__(self, *args: Any) -> None:
+        super().__init__(*args)
+        self.partial = None
 
 
 class ConfigError(HarnessError):

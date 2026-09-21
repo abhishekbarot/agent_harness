@@ -76,7 +76,7 @@ That choice is what makes the rest of the harness possible. Bash gives the model
 
 `run_command` still exists — you want the breadth — but it sits at the highest risk tier where the policy guards it hardest.
 
-**Tool input is model output, so it is untrusted.** Every path argument is resolved and confined to the workspace root before anything touches disk. Resolving first is what catches `../`, absolute paths, *and* symlinks pointing outside the workspace. A JSON Schema says `path` is a string; it does not say the path stays inside your project.
+**Tool input is model output, so it is untrusted.** Every path argument is resolved and confined to the workspace root before anything touches disk; a model-supplied command timeout is validated and capped, so one call can't outlive the run's own ceilings. Resolving first is what catches `../`, absolute paths, *and* symlinks pointing outside the workspace. A JSON Schema says `path` is a string; it does not say the path stays inside your project.
 
 ### 3. Permissions
 
@@ -88,6 +88,8 @@ That choice is what makes the rest of the harness possible. Bash gives the model
 | `ask` | run | ask | ask |
 | `readonly` | run | deny | deny |
 | `deny` | deny | deny | deny |
+
+Optional tool arguments are expressed as **required-but-nullable** (`{"type": ["string", "null"]}`) rather than left out of `required`, which is what strict tool use wants. `Tool.validate_schema` enforces that when a tool is registered, so the mistake surfaces at startup instead of as a 400 on your first live request.
 
 Two properties matter more than the table:
 
@@ -106,7 +108,7 @@ Long runs fill the window with stale tool results. Two server-side strategies, s
 
 ### 5. Budgets and observability
 
-Open-ended loops need ceilings. `--max-turns` bounds iterations; `--max-cost` aborts once estimated spend crosses a threshold. Token counts accumulate per turn and are priced from a rate table.
+Open-ended loops need ceilings. `--max-turns` bounds iterations; `--max-cost` aborts once estimated spend crosses a threshold. When a run does fail, the raised error carries a `partial` result, so `--transcript-dir` still captures it — the runs most worth reading back are the ones that didn't finish. Token counts accumulate per turn and are priced from a rate table.
 
 Watch `cache_hit_rate` in the run summary. **If it sits at zero across a multi-turn run, something in your request prefix is changing every call** — a timestamp in the system prompt, a reordered tool list, an unsorted `json.dumps`. Caching is a prefix match, so one varying byte invalidates everything after it. That's why `Config` is frozen and the tool registry preserves registration order, and why there are tests asserting the system prompt and tool schemas are byte-identical on every turn.
 
@@ -148,7 +150,7 @@ src/agent_harness/
   cli.py             command line entry point
 evals/cases.json     the eval suite
 examples/            offline demo, no API key needed
-tests/               140 tests, no network
+tests/               163 tests, no network
 ```
 
 ## Development

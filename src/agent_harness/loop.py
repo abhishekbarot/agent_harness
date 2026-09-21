@@ -25,7 +25,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .config import Config
-from .errors import BudgetExceededError, LoopError, RefusalError, ToolError
+from .errors import (
+    BudgetExceededError,
+    HarnessError,
+    LoopError,
+    RefusalError,
+    ToolError,
+)
 from .logging_setup import get_logger
 from .model import DEFAULT_INSTRUCTIONS, AnthropicBackend, ModelBackend, build_system_prompt
 from .permissions import PermissionPolicy, build_policy
@@ -106,6 +112,10 @@ class Agent:
 
         Pass ``messages`` to continue an existing transcript; the new prompt is
         appended to it.
+
+        On a ``HarnessError`` the exception carries a ``partial`` RunResult with
+        everything that happened up to the failure -- the runs most worth
+        replaying are the ones that did not finish.
         """
         started = time.monotonic()
         history: list[dict[str, Any]] = list(messages or [])
@@ -113,9 +123,24 @@ class Agent:
 
         usage = Usage()
         calls: list[ToolCallRecord] = []
-        pause_resumes = 0
         stop_reason = "max_turns"
         final_text = ""
+        # Text accumulated for the turn in progress. A turn can span several
+        # responses when a server-side tool pauses it.
+        pending_text = ""
+        # Pauses are counted within a turn, not across the run: a long run that
+        # pauses occasionally and resumes cleanly each time is healthy.
+        pause_resumes = 0
+
+        def snapshot(reason: str) -> RunResult:
+            return RunResult(
+                text=final_text,
+                stop_reason=reason,
+                messages=history,
+                usage=usage,
+                tool_calls=calls,
+                duration_s=time.monotonic() - started,
+            )
 
         log.info(
             "run started",
@@ -127,77 +152,87 @@ class Agent:
             },
         )
 
-        for turn in range(1, self.config.max_turns + 1):
-            response = self.backend.create(
-                messages=history,
-                system=self.system,
-                tools=self.registry.to_api_schemas(),
-            )
-            usage.add(getattr(response, "usage", None))
-            self._check_budget(usage)
+        try:
+            for turn in range(1, self.config.max_turns + 1):
+                response = self.backend.create(
+                    messages=history,
+                    system=self.system,
+                    tools=self.registry.to_api_schemas(),
+                )
+                usage.add(getattr(response, "usage", None))
+                self._check_budget(usage)
 
-            # Append the assistant turn verbatim, including thinking and
-            # tool_use blocks. Storing only the text would drop the blocks the
-            # API needs to continue the conversation.
-            history.append({"role": "assistant", "content": response.content})
+                # Append the assistant turn verbatim, including thinking and
+                # tool_use blocks. Storing only the text would drop the blocks
+                # the API needs to continue the conversation.
+                history.append({"role": "assistant", "content": response.content})
 
-            reason = getattr(response, "stop_reason", None) or "end_turn"
-            text = _text_of(response)
-            if text:
-                final_text = text
+                reason = getattr(response, "stop_reason", None) or "end_turn"
+                text = _text_of(response)
+                pending_text = f"{pending_text}\n{text}".strip() if pending_text else text
 
-            log.debug(
-                "turn complete", extra={"turn": turn, "stop_reason": reason, "chars": len(text)}
-            )
-
-            if reason == "refusal":
-                details = getattr(response, "stop_details", None)
-                category = getattr(details, "category", None)
-                raise RefusalError(
-                    f"the model declined this request (category: {category})", category
+                log.debug(
+                    "turn complete",
+                    extra={"turn": turn, "stop_reason": reason, "chars": len(text)},
                 )
 
-            if reason == "pause_turn":
-                # A server-side tool hit its iteration limit mid-turn. The turn
-                # is already appended, so re-sending resumes it.
-                pause_resumes += 1
-                if pause_resumes > MAX_PAUSE_RESUMES:
-                    raise LoopError(f"turn still paused after {MAX_PAUSE_RESUMES} resumes")
-                continue
-
-            tool_uses = [b for b in response.content if getattr(b, "type", None) == "tool_use"]
-
-            if reason == "max_tokens":
-                # A truncated tool input still parses as a plausible object, so
-                # running it would act on arguments the model never finished
-                # writing.
-                if tool_uses:
-                    raise LoopError(
-                        "the response was truncated mid-tool-call; raise max_tokens "
-                        f"(currently {self.config.max_tokens}) and retry"
+                if reason == "refusal":
+                    details = getattr(response, "stop_details", None)
+                    category = getattr(details, "category", None)
+                    raise RefusalError(
+                        f"the model declined this request (category: {category})", category
                     )
-                stop_reason = "max_tokens"
-                break
 
-            if not tool_uses:
-                stop_reason = reason
-                break
+                if reason == "pause_turn":
+                    # A server-side tool hit its iteration limit mid-turn. The
+                    # turn is already appended, so re-sending resumes it.
+                    pause_resumes += 1
+                    if pause_resumes >= MAX_PAUSE_RESUMES:
+                        raise LoopError(
+                            f"a single turn paused {pause_resumes} times without "
+                            "completing; giving up"
+                        )
+                    continue
 
-            results = self._dispatch(tool_uses, calls)
-            # Every result for a turn goes back in ONE user message. Splitting
-            # them across messages teaches the model to stop batching its calls.
-            history.append({"role": "user", "content": results})
-        else:
-            log.warning("run hit the turn ceiling", extra={"max_turns": self.config.max_turns})
+                # The turn finished, however many responses it took.
+                final_text = pending_text
+                pending_text = ""
+                pause_resumes = 0
 
-        result = RunResult(
-            text=final_text,
-            stop_reason=stop_reason,
-            messages=history,
-            usage=usage,
-            tool_calls=calls,
-            duration_s=time.monotonic() - started,
-        )
+                tool_uses = [b for b in response.content if getattr(b, "type", None) == "tool_use"]
+
+                if reason == "max_tokens":
+                    # A truncated tool input still parses as a plausible object,
+                    # so running it would act on arguments the model never
+                    # finished writing.
+                    if tool_uses:
+                        raise LoopError(
+                            "the response was truncated mid-tool-call; raise max_tokens "
+                            f"(currently {self.config.max_tokens}) and retry"
+                        )
+                    stop_reason = "max_tokens"
+                    break
+
+                if not tool_uses:
+                    stop_reason = reason
+                    break
+
+                results = self._dispatch(tool_uses, calls)
+                # Every result for a turn goes back in ONE user message.
+                # Splitting them teaches the model to stop batching its calls.
+                history.append({"role": "user", "content": results})
+            else:
+                log.warning(
+                    "run hit the turn ceiling", extra={"max_turns": self.config.max_turns}
+                )
+        except HarnessError as exc:
+            exc.partial = snapshot("error")
+            log.warning(
+                "run failed", extra={"error": type(exc).__name__, "turns": usage.turns}
+            )
+            raise
+
+        result = snapshot(stop_reason)
         log.info("run finished", extra=result.summary(self.config.model))
         return result
 

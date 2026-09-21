@@ -307,7 +307,27 @@ class TestStopReasons:
         result = agent.run("search the web")
 
         assert result.completed
-        assert result.text == "finished"
+        # A pause splits one logical turn across two responses, so the text of
+        # both belongs to that turn.
+        assert result.text == "working\nfinished"
+
+    def test_pauses_are_counted_per_turn_not_per_run(self, config):
+        """A long run that pauses occasionally and resumes fine is healthy."""
+        script = []
+        for i in range(8):
+            script.append(FakeMessage(content=[FakeText("...")], stop_reason="pause_turn"))
+            script.append(tool_message("list_dir", {"path": "."}, f"toolu_{i}"))
+        script.append(text_message("done"))
+
+        agent = Agent(
+            Config(workspace=config.workspace, permission_mode="auto", max_turns=40,
+                   context_strategy="none"),
+            backend=ScriptedBackend(script),
+        )
+        result = agent.run("a long run with occasional pauses")
+
+        assert result.completed
+        assert result.text == "done"
 
     def test_endless_pause_turn_is_caught(self, config):
         paused = [
@@ -318,7 +338,7 @@ class TestStopReasons:
                    context_strategy="none"),
             backend=ScriptedBackend(paused),
         )
-        with pytest.raises(LoopError, match="still paused"):
+        with pytest.raises(LoopError, match="without completing"):
             agent.run("go")
 
 
@@ -446,3 +466,101 @@ def test_result_tracks_denied_calls(config):
     summary = agent.run("list files").summary(config.model)
     assert summary["denied_calls"] == 1
     assert summary["tool_calls"] == 1
+
+
+class TestFinalTextIsTheTerminalTurn:
+    """Regression: an early preamble must not be presented as the final answer."""
+
+    def test_a_terminal_turn_with_no_text_does_not_resurface_a_preamble(self, config):
+        agent = make_agent(
+            config,
+            [
+                FakeMessage(
+                    content=[
+                        FakeText("Let me check that for you."),
+                        FakeToolUse("list_dir", {"path": "."}, "toolu_1"),
+                    ],
+                    stop_reason="tool_use",
+                ),
+                FakeMessage(content=[], stop_reason="end_turn"),
+            ],
+        )
+        result = agent.run("go")
+
+        assert result.completed
+        assert result.text == "", "the preamble is not the answer"
+
+    def test_the_last_turns_text_wins_over_earlier_turns(self, config):
+        agent = make_agent(
+            config,
+            [
+                FakeMessage(
+                    content=[
+                        FakeText("First I'll look around."),
+                        FakeToolUse("list_dir", {"path": "."}, "toolu_1"),
+                    ],
+                    stop_reason="tool_use",
+                ),
+                text_message("The directory holds two entries."),
+            ],
+        )
+        assert agent.run("go").text == "The directory holds two entries."
+
+
+class TestPartialRunSurvivesFailure:
+    """A failed run is the one most worth reading back."""
+
+    def test_truncation_carries_the_transcript_so_far(self, config):
+        agent = make_agent(
+            config,
+            [
+                tool_message("list_dir", {"path": "."}, "toolu_1"),
+                FakeMessage(
+                    content=[FakeToolUse("write_file", {"path": "x", "content": "y"})],
+                    stop_reason="max_tokens",
+                ),
+            ],
+        )
+        with pytest.raises(LoopError) as exc:
+            agent.run("go")
+
+        partial = exc.value.partial
+        assert partial is not None
+        assert partial.stop_reason == "error"
+        assert partial.usage.turns == 2
+        assert [c.name for c in partial.tool_calls] == ["list_dir"]
+        assert len(partial.messages) >= 3
+
+    def test_budget_overrun_carries_usage(self, workspace):
+        config = Config(
+            workspace=workspace,
+            permission_mode="auto",
+            max_cost_usd=0.001,
+            context_strategy="none",
+        )
+        expensive = FakeMessage(
+            content=[FakeText("...")],
+            stop_reason="tool_use",
+            usage=FakeUsage(input_tokens=1_000_000, output_tokens=1_000_000),
+        )
+        agent = make_agent(config, [expensive])
+
+        with pytest.raises(BudgetExceededError) as exc:
+            agent.run("costly")
+
+        assert exc.value.partial is not None
+        assert exc.value.partial.usage.turns == 1
+
+    def test_refusal_carries_the_partial_run(self, config):
+        refused = FakeMessage(
+            content=[FakeText("")],
+            stop_reason="refusal",
+            stop_details=FakeStopDetails(category="cyber"),
+        )
+        agent = make_agent(config, [refused])
+
+        with pytest.raises(RefusalError) as exc:
+            agent.run("disallowed")
+
+        assert exc.value.partial is not None
+        assert exc.value.category == "cyber"

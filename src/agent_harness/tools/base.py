@@ -78,15 +78,38 @@ class Tool(ABC):
 
         ``strict`` plus ``additionalProperties: false`` makes the API guarantee
         that ``tool_use.input`` validates against the schema.
+
+        Strict mode wants every declared property listed in ``required``. An
+        optional argument is therefore expressed as required-but-nullable
+        (``{"type": ["string", "null"]}``), not by omission from ``required``.
+        ``validate_schema`` enforces that here, so a mistake surfaces when the
+        tool is registered instead of as a 400 on the first live request.
         """
         schema = dict(self.input_schema)
         schema.setdefault("additionalProperties", False)
+        self.validate_schema(schema)
         return {
             "name": self.name,
             "description": self.description,
             "strict": True,
             "input_schema": schema,
         }
+
+    def validate_schema(self, schema: dict[str, Any]) -> None:
+        """Check the schema satisfies what strict tool use requires."""
+        properties = set(schema.get("properties", {}))
+        required = set(schema.get("required", []))
+        missing = properties - required
+        if missing:
+            raise ValueError(
+                f"tool {self.name!r} declares {sorted(missing)} outside 'required'; "
+                "strict tool use needs every property required -- make optional "
+                'arguments nullable instead, e.g. {"type": ["string", "null"]}'
+            )
+        if schema.get("additionalProperties") is not False:
+            raise ValueError(
+                f"tool {self.name!r} must set additionalProperties to false"
+            )
 
     def describe(self) -> str:
         return f"{self.name} ({self.risk.value})"
