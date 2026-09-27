@@ -1,0 +1,4 @@
+{
+  "name": "agent_harness",
+  "install": "bash .cursor/install.sh"
+}
