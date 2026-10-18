@@ -207,6 +207,7 @@ src/agent_harness/
   session.py         transcript persistence
   cli.py             command line entry point
 evals/cases.json     the eval suite
+course/              graded course exercises built from this harness (offline)
 examples/            offline demo, no API key needed
 tests/               210 tests, no network
 ```
