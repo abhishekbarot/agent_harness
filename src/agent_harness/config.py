@@ -51,6 +51,13 @@ class Config:
     request_timeout: float = 600.0
     max_retries: int = 3
 
+    # Who the agent is: a built-in profile name or a path to a profile file.
+    profile: str = "engineer"
+    # Cross-run memory. None disables the memory tool entirely.
+    memory_dir: Path | None = None
+    # Offer the update_plan tool.
+    planning: bool = True
+
     log_level: str = "INFO"
     log_format: str = "text"  # "text" | "json"
     transcript_dir: Path | None = None
@@ -78,6 +85,8 @@ class Config:
             raise ConfigError(f"log_format must be 'text' or 'json', got {self.log_format!r}")
         # Resolve the workspace once so every path check compares real paths.
         object.__setattr__(self, "workspace", Path(self.workspace).resolve())
+        if self.memory_dir is not None:
+            object.__setattr__(self, "memory_dir", Path(self.memory_dir).resolve())
 
     @classmethod
     def from_env(cls, **overrides: object) -> Config:
@@ -104,6 +113,12 @@ class Config:
             env["context_strategy"] = v
         if v := os.getenv("AGENT_THINKING_DISPLAY"):
             env["thinking_display"] = v
+        if v := os.getenv("AGENT_PROFILE"):
+            env["profile"] = v
+        if v := os.getenv("AGENT_MEMORY_DIR"):
+            env["memory_dir"] = Path(v)
+        if v := os.getenv("AGENT_PLANNING"):
+            env["planning"] = _bool(v, "AGENT_PLANNING")
         if v := os.getenv("AGENT_LOG_LEVEL"):
             env["log_level"] = v.upper()
         if v := os.getenv("AGENT_LOG_FORMAT"):
@@ -127,3 +142,12 @@ def _float(value: str, name: str) -> float:
     except ValueError as exc:
         raise ConfigError(f"{name} must be a number, got {value!r}") from exc
 
+
+
+def _bool(value: str, name: str) -> bool:
+    lowered = value.strip().lower()
+    if lowered in ("1", "true", "yes", "on"):
+        return True
+    if lowered in ("0", "false", "no", "off"):
+        return False
+    raise ConfigError(f"{name} must be true or false, got {value!r}")

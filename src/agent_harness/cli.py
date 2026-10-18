@@ -42,6 +42,16 @@ def build_parser() -> argparse.ArgumentParser:
         choices=VALID_CONTEXT_STRATEGIES,
         help="Server-side context management (default: clear_tool_uses).",
     )
+    parser.add_argument(
+        "--profile",
+        help="Built-in profile (engineer, reviewer, explainer) or a path to a profile file.",
+    )
+    parser.add_argument(
+        "--memory-dir", type=Path, help="Enable cross-run memory, stored in this directory."
+    )
+    parser.add_argument(
+        "--no-plan", action="store_true", help="Do not offer the update_plan tool."
+    )
     parser.add_argument("--transcript-dir", type=Path, help="Write a JSON transcript here.")
     parser.add_argument("--log-format", choices=("text", "json"), help="Log output format.")
     parser.add_argument("--log-level", help="DEBUG | INFO | WARNING | ERROR.")
@@ -65,6 +75,9 @@ def main(argv: list[str] | None = None) -> int:
             "workspace": args.workspace,
             "permission_mode": args.permission_mode,
             "context_strategy": args.context_strategy,
+            "profile": args.profile,
+            "memory_dir": args.memory_dir,
+            "planning": False if args.no_plan else None,
             "transcript_dir": args.transcript_dir,
             "log_format": args.log_format,
             "log_level": args.log_level.upper() if args.log_level else None,
@@ -115,6 +128,11 @@ def main(argv: list[str] | None = None) -> int:
             f"\n[{summary['stop_reason']} | {summary['turns']} turns | "
             f"{summary['tool_calls']} tool calls | {summary['total_tokens']} tokens"
             + (f" | ${cost:.4f}" if isinstance(cost, float) else "")
+            + (
+                f" | plan {summary['plan_completed']}/{summary['plan_steps']}"
+                if summary["plan_steps"]
+                else ""
+            )
             + f" | {summary['duration_s']}s]",
             file=sys.stderr,
         )

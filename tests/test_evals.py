@@ -129,6 +129,27 @@ class TestGrading:
         assert not result.passed
         assert "modified" in result.failures[0].detail
 
+    def test_plan_completed_fails_on_an_unfinished_plan(self, base_config):
+        case = EvalCase(
+            id="plan",
+            prompt="plan it",
+            checks=[{"type": "plan_completed"}],
+        )
+        unfinished = [
+            {"step": "a", "status": "completed"},
+            {"step": "b", "status": "pending"},
+        ]
+        responses = [tool_message("update_plan", {"steps": unfinished}), text_message("done")]
+        result = run_case(case, base_config, factory(responses))
+
+        assert not result.passed
+        assert "'b'" in result.failures[0].detail
+
+    def test_plan_completed_fails_without_a_plan(self, base_config):
+        case = EvalCase(id="noplan", prompt="x", checks=[{"type": "plan_completed"}])
+        result = run_case(case, base_config, factory([text_message("done")]))
+        assert "no plan" in result.failures[0].detail
+
     def test_max_tool_calls_bounds_flailing(self, base_config):
         case = EvalCase(
             id="efficient",
