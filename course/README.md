@@ -39,6 +39,7 @@ Exercises build on each other inside a section. For example, 4.4 (the agent loop
 | [3. Tool use](section03_tool_use/) | 3.1–3.4 | Tool result blocks, strict schemas, a tool registry, result batching |
 | [4. The agent loop](section04_agent_loop/) | 4.1–4.4 | Reading responses, handling every `stop_reason`, running tools, the loop itself |
 | [5. Building tools safely](section05_safe_tools/) | 5.1–5.4 | Path confinement, timeout limits, output truncation, a safe `read_file` |
+| [6. Permissions](section06_permissions/) | 6.1–6.4 | The permission table, a console approver, the policy, gated tool dispatch |
 
 `common/` holds the fake model and a few small shared types. You don't need to edit it, but reading `common/fakes.py` shows exactly what the tests feed your code.
 

@@ -35,6 +35,23 @@ class Risk(str, Enum):
 
 
 @dataclass
+class Decision:
+    """A permission decision. ``remember`` applies it for the rest of the run."""
+
+    allowed: bool
+    reason: str = ""
+    remember: bool = False
+
+    @classmethod
+    def allow(cls, reason: str = "", remember: bool = False) -> Decision:
+        return cls(True, reason, remember)
+
+    @classmethod
+    def deny(cls, reason: str, remember: bool = False) -> Decision:
+        return cls(False, reason, remember)
+
+
+@dataclass
 class ToolResult:
     """What a tool hands back. ``is_error`` goes to the model; it is not raised."""
 
@@ -51,9 +68,16 @@ class Tool:
     input_schema: dict[str, Any]
     fn: Callable[..., ToolResult]
     risk: Risk = Risk.READ_ONLY
+    # Optional: a tool whose calls differ in risk (memory "view" vs "delete")
+    # supplies a function that rates each call. See Section 6.
+    risk_fn: Callable[[dict[str, Any]], Risk] | None = None
 
     def run(self, **kwargs: Any) -> ToolResult:
         return self.fn(**kwargs)
+
+    def risk_for(self, tool_input: dict[str, Any]) -> Risk:
+        """The risk of this particular call."""
+        return self.risk_fn(tool_input) if self.risk_fn else self.risk
 
     def to_api_schema(self) -> dict[str, Any]:
         return {
