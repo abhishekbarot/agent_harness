@@ -31,12 +31,12 @@ When a new exercise lands in `course/`, set its item's `status` to `"available"`
 
 ## Deploy
 
-`.github/workflows/pages.yml` publishes this folder to GitHub Pages on every push to `main` that touches `site/`. The 50 browser checks run first, and a failing check blocks the deploy. Pull requests that touch `site/` run the same checks without deploying, and every run keeps its screenshots as a downloadable artifact.
+`.github/workflows/pages.yml` publishes this folder to GitHub Pages on every push to the repository's default branch that touches `site/`. The 50 browser checks run first, and a failing check blocks the deploy. Pull requests and other branches that touch `site/` run the same checks without deploying, and every run keeps its screenshots as a downloadable artifact.
 
 Only `index.html`, `styles.css`, `app.js` and `curriculum.js` are published. The test script and this README stay in the repo.
 
-**One-time setup:** in the repository's **Settings → Pages → Build and deployment**, set **Source** to **GitHub Actions**. The site then appears at `https://abhishekbarot.github.io/agent_harness/`. You can also run the workflow by hand from the **Actions** tab.
+**One-time setup:** in the repository's **Settings → Pages → Build and deployment**, set **Source** to **GitHub Actions**. The site then appears at `https://abhishekbarot.github.io/agent_harness/` after the next deploy. You can also run the workflow by hand from the **Actions** tab.
 
-Exercise links use `REPO_TREE` in `curriculum.js`, which points at the `main` branch, so they work once the course is merged.
+Exercise links use `REPO_TREE` in `curriculum.js`. It points at `HEAD`, GitHub's name for the default branch, so the links work once the course is merged and keep working if the branch is renamed.
 
 Any other static host works too. On Vercel or Netlify, set the root directory to `site`, with no build command.

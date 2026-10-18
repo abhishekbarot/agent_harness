@@ -7,7 +7,9 @@
 // status: "available" | "soon"
 // path:   for exercises, the folder under REPO_TREE
 
-window.REPO_TREE = "https://github.com/abhishekbarot/agent_harness/tree/main/course";
+// "HEAD" is GitHub's name for the default branch, so links follow it even if
+// the branch is renamed.
+window.REPO_TREE = "https://github.com/abhishekbarot/agent_harness/tree/HEAD/course";
 
 window.CURRICULUM = [
   {
