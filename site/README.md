@@ -20,7 +20,7 @@ python -m http.server --directory site 8000   # then open http://localhost:8000
 
 ```bash
 npm install playwright        # once
-node site/check.cjs           # 44 checks; screenshots go to site/screenshots/
+node site/check.cjs           # 50 checks; screenshots go to site/screenshots/
 ```
 
 The checks cover what a student does: ticking items, reloading, filtering, resetting, switching theme, using a 375 px phone, using a browser that blocks storage, and using only the keyboard.
@@ -31,7 +31,7 @@ When a new exercise lands in `course/`, set its item's `status` to `"available"`
 
 ## Deploy
 
-`.github/workflows/pages.yml` publishes this folder to GitHub Pages on every push to `main` that touches `site/`. The browser checks run first, and a failing check blocks the deploy. Pull requests that touch `site/` run the same checks without deploying, and every run keeps its screenshots as a downloadable artifact.
+`.github/workflows/pages.yml` publishes this folder to GitHub Pages on every push to `main` that touches `site/`. The 50 browser checks run first, and a failing check blocks the deploy. Pull requests that touch `site/` run the same checks without deploying, and every run keeps its screenshots as a downloadable artifact.
 
 Only `index.html`, `styles.css`, `app.js` and `curriculum.js` are published. The test script and this README stay in the repo.
 

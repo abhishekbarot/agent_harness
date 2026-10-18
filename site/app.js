@@ -190,12 +190,27 @@
     });
   }
 
-  document.getElementById("reset").addEventListener("click", () => {
-    if (!done.size) return;
-    if (!window.confirm("Clear all your progress on this sheet?")) return;
+  // Reset asks in the page itself. Native confirm() is blocked in some
+  // embedded browsers, where it silently returns false.
+  const resetButton = document.getElementById("reset");
+  const resetConfirm = document.getElementById("reset-confirm");
+  const showResetConfirm = (show) => {
+    resetButton.hidden = show;
+    resetConfirm.hidden = !show;
+    (show ? document.getElementById("reset-no") : resetButton).focus();
+  };
+  resetButton.addEventListener("click", () => {
+    if (done.size) showResetConfirm(true);
+  });
+  document.getElementById("reset-no").addEventListener("click", () => showResetConfirm(false));
+  document.getElementById("reset-yes").addEventListener("click", () => {
     done.clear();
     store.set(PROGRESS_KEY, []);
     render();
+    showResetConfirm(false);
+  });
+  resetConfirm.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") showResetConfirm(false);
   });
 
   // Theme: follow the system until the visitor picks one.

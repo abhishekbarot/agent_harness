@@ -157,12 +157,28 @@ async function main() {
       await page.click('.chip[data-filter="all"]');
 
       console.log("\nReset");
-      page.once("dialog", (d) => d.dismiss());
+      let nativeDialog = false;
+      page.on("dialog", (d) => {
+        nativeDialog = true;
+        d.dismiss();
+      });
       await page.click("#reset");
-      check("cancelling reset keeps progress", (await count(page)) === `3 / ${total}`);
-      page.once("dialog", (d) => d.accept());
+      check("reset asks in the page", await page.locator("#reset-confirm").isVisible());
+      check("focus moves to the safe choice",
+        (await page.evaluate(() => document.activeElement.id)) === "reset-no");
+      await page.click("#reset-no");
+      check("Keep it keeps progress", (await count(page)) === `3 / ${total}`);
+      check("the prompt closes", await page.locator("#reset-confirm").isHidden());
       await page.click("#reset");
-      check("confirming reset clears progress", (await count(page)) === `0 / ${total}`);
+      await page.keyboard.press("Escape");
+      check("Escape cancels too", (await count(page)) === `3 / ${total}`
+        && (await page.locator("#reset").isVisible()));
+      await page.click("#reset");
+      await page.click("#reset-yes");
+      check("Clear progress clears it", (await count(page)) === `0 / ${total}`);
+      check("no native pop-up is used", !nativeDialog);
+      await page.click("#reset");
+      check("with nothing to clear, reset doesn't ask", await page.locator("#reset-confirm").isHidden());
       await page.reload();
       check("reset sticks after a reload", (await count(page)) === `0 / ${total}`);
 
