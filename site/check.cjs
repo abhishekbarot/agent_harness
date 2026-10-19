@@ -63,6 +63,41 @@ async function openPage(browser, url, options = {}) {
   return { context, page, errors };
 }
 
+// Every visible text element whose color falls below WCAG AA against the
+// background actually behind it (4.5:1, or 3:1 for large text).
+function lowContrast() {
+  const lum = (c) => {
+    const [r, g, b] = c.match(/[\d.]+/g).slice(0, 3).map((v) => {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const bgOf = (n) => {
+    for (; n; n = n.parentElement) {
+      const c = getComputedStyle(n).backgroundColor;
+      if (c !== "transparent" && !/,\s*0\)$/.test(c)) return c;
+    }
+    return "rgb(255, 255, 255)";
+  };
+  const fails = [];
+  for (const n of document.querySelectorAll("body *")) {
+    if (![...n.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim())) continue;
+    const s = getComputedStyle(n);
+    if (s.display === "none" || s.visibility === "hidden" || !n.getClientRects().length) continue;
+    const [hi, lo] = [lum(s.color), lum(bgOf(n))].sort((a, b) => b - a);
+    const ratio = (hi + 0.05) / (lo + 0.05);
+    const large = parseFloat(s.fontSize) >= 24 || (parseFloat(s.fontSize) >= 18.66 && +s.fontWeight >= 700);
+    if (ratio < (large ? 3 : 4.5)) fails.push(`${n.textContent.trim().slice(0, 20)} ${ratio.toFixed(2)}:1`);
+  }
+  return [...new Set(fails)];
+}
+
+function pngSize(file) {
+  const head = fs.readFileSync(file).subarray(0, 24);
+  return [head.readUInt32BE(16), head.readUInt32BE(20)];
+}
+
 const count = (page) => page.locator("#progress-count").textContent();
 const box = (page, id) => page.locator(`input[data-id="${id}"]`);
 
@@ -117,16 +152,45 @@ async function main() {
 
       const links = await page.locator(".item a.open").evaluateAll((as) => as.map((a) => a.href));
       check(`every available exercise links to GitHub (${links.length}/${total})`, links.length === total);
+      const fileRe = /github\.com\/[^/]+\/[^/]+\/blob\/HEAD\/course\/(section\d\d_[a-z_]+\/ex\d_[a-z_]+\.py)$/;
       check(
-        "links point at the course section folders",
-        links.every((h) => /github\.com\/.+\/course\/section\d\d_[a-z_]+$/.test(h)),
-        links.find((h) => !/course\/section\d\d_/.test(h)),
+        "each link opens that exercise's own file",
+        links.every((h) => fileRe.test(h)) && new Set(links).size === links.length,
+        links.find((h) => !fileRe.test(h)),
       );
+      const missing = links
+        .map((h) => (h.match(fileRe) || [])[1])
+        .filter((rel) => !rel || !fs.existsSync(path.join(ROOT, "..", "course", rel)));
+      check("every linked exercise file exists in course/", missing.length === 0, missing.join(", "));
+
+      const headings = await page.locator("h2.week-title").allTextContents();
+      check("each week is a heading", headings.length === data.weeks, `${headings.length} headings`);
+      const lowLight = await page.evaluate(lowContrast);
+      check("light theme text meets WCAG AA contrast", lowLight.length === 0, lowLight.join("; "));
+      check("theme button names the dark theme", (await page.textContent("#theme-toggle")) === "Dark theme");
+      check("reset is disabled with nothing to clear", await page.locator("#reset").isDisabled());
+
+      const meta = await page.evaluate(() => ({
+        icon: document.querySelector('link[rel="icon"]')?.getAttribute("href") || "",
+        image: document.querySelector('meta[property="og:image"]')?.content || "",
+        title: document.querySelector('meta[property="og:title"]')?.content || "",
+        desc: document.querySelector('meta[property="og:description"]')?.content || "",
+        card: document.querySelector('meta[name="twitter:card"]')?.content || "",
+      }));
+      check("has a favicon", meta.icon.startsWith("data:image/svg+xml"));
+      check("has link-preview title, description and card",
+        !!(meta.title && meta.desc && meta.card === "summary_large_image"));
+      const imageFile = path.join(ROOT, path.basename(new URL(meta.image || "http://x/").pathname));
+      check("preview image URL is absolute and the file exists",
+        /^https:\/\//.test(meta.image) && fs.existsSync(imageFile), meta.image);
+      const [w, h] = fs.existsSync(imageFile) ? pngSize(imageFile) : [0, 0];
+      check("preview image is 1200×630", w === 1200 && h === 630, `${w}×${h}`);
       await page.screenshot({ path: path.join(SHOTS, "desktop-light.png"), fullPage: true });
 
       console.log("\nTicking items off");
       await box(page, "ex-3-1").check();
       check(`progress shows 1 / ${total}`, (await count(page)) === `1 / ${total}`);
+      check("reset is enabled once there is progress", await page.locator("#reset").isEnabled());
       const week2 = page.locator('details[data-week="2"] .week-meta');
       check("week 2 shows 1 / 4", (await week2.textContent()) === "1 / 4");
       check("ticked item is struck through", await page.locator(".item.is-done").count() === 1);
@@ -177,14 +241,18 @@ async function main() {
       await page.click("#reset-yes");
       check("Clear progress clears it", (await count(page)) === `0 / ${total}`);
       check("no native pop-up is used", !nativeDialog);
-      await page.click("#reset");
-      check("with nothing to clear, reset doesn't ask", await page.locator("#reset-confirm").isHidden());
+      check("after clearing, reset is disabled again", await page.locator("#reset").isDisabled());
+      check("focus lands on the filters, not lost",
+        await page.evaluate(() => document.activeElement.matches(".chip")));
       await page.reload();
       check("reset sticks after a reload", (await count(page)) === `0 / ${total}`);
 
       console.log("\nTheme");
       await page.click("#theme-toggle");
       check("toggle switches to dark", (await page.getAttribute("html", "data-theme")) === "dark");
+      check("button now offers the light theme", (await page.textContent("#theme-toggle")) === "Light theme");
+      const lowDark = await page.evaluate(lowContrast);
+      check("dark theme text meets WCAG AA contrast", lowDark.length === 0, lowDark.join("; "));
       const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
       check("dark background applied", bg === "rgb(22, 22, 20)", bg);
       await page.reload();
@@ -198,6 +266,19 @@ async function main() {
       const { context, page } = await openPage(browser, url, { context: { colorScheme: "dark" } });
       const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
       check("follows the system dark setting", bg === "rgb(22, 22, 20)", bg);
+      check("button offers the light theme on a dark system",
+        (await page.textContent("#theme-toggle")) === "Light theme");
+      await context.close();
+    }
+
+    console.log("\nJavaScript turned off");
+    {
+      const context = await browser.newContext({ javaScriptEnabled: false });
+      const page = await context.newPage();
+      await page.goto(url);
+      const note = page.locator(".noscript");
+      check("explains that JavaScript is needed", await note.isVisible());
+      check("still links to the exercises", (await note.locator("a").getAttribute("href")).includes("/course"));
       await context.close();
     }
 

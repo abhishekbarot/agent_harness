@@ -8,7 +8,8 @@
   const PROGRESS_KEY = "agent-sheet:progress:v1";
   const THEME_KEY = "agent-sheet:theme";
   const weeks = window.CURRICULUM || [];
-  const repoTree = window.REPO_TREE || "";
+  const courseUrl = window.COURSE_URL || "";
+  const resetButton = document.getElementById("reset");
 
   const store = {
     get(key, fallback) {
@@ -78,10 +79,10 @@
       !soon && item.path
         ? el("a", {
             class: "open",
-            href: `${repoTree}/${item.path}`,
+            href: `${courseUrl}/${item.path}`,
             target: "_blank",
             rel: "noopener",
-            "aria-label": `Open exercise ${item.title} on GitHub`,
+            "aria-label": `Open the file for exercise ${item.title} on GitHub`,
             text: "Open ↗",
           })
         : null,
@@ -132,7 +133,7 @@
             "summary",
             {},
             el("span", { class: "week-num", "aria-hidden": "true", text: String(week.week) }),
-            el("span", { class: "week-title", text: `Week ${week.week} · ${week.title}` }),
+            el("h2", { class: "week-title", text: `Week ${week.week} · ${week.title}` }),
             el("span", { class: `week-meta${meta.complete ? " complete" : ""}`, text: meta.text }),
             el("span", { class: "week-summary", text: week.summary }),
           ),
@@ -154,6 +155,8 @@
     const bar = document.getElementById("progress-bar");
     bar.setAttribute("aria-valuenow", String(pct));
     bar.setAttribute("aria-valuetext", `${finished} of ${available.length} done`);
+    // Nothing to clear means nothing to click.
+    resetButton.disabled = done.size === 0;
     document.getElementById("progress-note").textContent =
       finished === 0
         ? "Tick items off as you finish them. Progress is saved in this browser only."
@@ -192,12 +195,17 @@
 
   // Reset asks in the page itself. Native confirm() is blocked in some
   // embedded browsers, where it silently returns false.
-  const resetButton = document.getElementById("reset");
   const resetConfirm = document.getElementById("reset-confirm");
   const showResetConfirm = (show) => {
     resetButton.hidden = show;
     resetConfirm.hidden = !show;
-    (show ? document.getElementById("reset-no") : resetButton).focus();
+    // After a reset the button is disabled, so focus the filters next to it.
+    const target = show
+      ? document.getElementById("reset-no")
+      : resetButton.disabled
+        ? document.querySelector(".chip")
+        : resetButton;
+    target.focus();
   };
   resetButton.addEventListener("click", () => {
     if (done.size) showResetConfirm(true);
@@ -213,18 +221,25 @@
     if (event.key === "Escape") showResetConfirm(false);
   });
 
-  // Theme: follow the system until the visitor picks one.
+  // Theme: follow the system until the visitor picks one. The button names
+  // the theme it switches to, so it always says what a click will do.
   const root = document.documentElement;
+  const themeButton = document.getElementById("theme-toggle");
+  const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+  const currentTheme = () => root.dataset.theme || (systemDark.matches ? "dark" : "light");
+  const labelThemeButton = () => {
+    themeButton.textContent = currentTheme() === "dark" ? "Light theme" : "Dark theme";
+  };
   const savedTheme = store.get(THEME_KEY, null);
   if (savedTheme === "light" || savedTheme === "dark") root.dataset.theme = savedTheme;
-  document.getElementById("theme-toggle").addEventListener("click", () => {
-    const current =
-      root.dataset.theme ||
-      (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    const next = current === "dark" ? "light" : "dark";
+  themeButton.addEventListener("click", () => {
+    const next = currentTheme() === "dark" ? "light" : "dark";
     root.dataset.theme = next;
     store.set(THEME_KEY, next);
+    labelThemeButton();
   });
+  systemDark.addEventListener("change", labelThemeButton);
+  labelThemeButton();
 
   render();
 })();

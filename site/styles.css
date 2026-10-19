@@ -5,11 +5,11 @@
   --text: #1c1c1a;
   --muted: #5f5e58;
   --border: #e2e0d8;
-  --accent: #b4532a;
+  --accent: #9c4520;
   --accent-soft: #f6e6dd;
   --done: #2f7d4f;
-  --easy: #2f7d4f;
-  --medium: #a86a12;
+  --easy: #256b42;
+  --medium: #855209;
   --hard: #b23a3a;
   --radius: 12px;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px rgb(0 0 0 / 0.04);
@@ -147,7 +147,8 @@ button { font: inherit; cursor: pointer; }
   font-size: 0.9rem;
   min-height: 36px;
 }
-.ghost:hover, .chip:hover { border-color: var(--muted); }
+.ghost:hover:not(:disabled), .chip:hover { border-color: var(--muted); }
+.ghost:disabled { opacity: 0.5; cursor: not-allowed; }
 .danger {
   border: 1px solid var(--hard);
   background: var(--hard);
@@ -195,7 +196,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
   color: var(--accent);
   font-weight: 700; font-variant-numeric: tabular-nums;
 }
-.week-title { font-weight: 650; font-size: 1.05rem; min-width: 0; }
+.week-title { margin: 0; font-weight: 650; font-size: 1.05rem; line-height: 1.35; min-width: 0; }
 .week-summary { color: var(--muted); font-size: 0.9rem; grid-column: 2; min-width: 0; }
 .week-meta {
   grid-row: span 2; grid-column: 3;
@@ -237,6 +238,12 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .open:hover { text-decoration: underline; }
 
 .empty { color: var(--muted); text-align: center; padding: 24px 0; }
+.noscript {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
 
 /* -- how-to + footer -------------------------------------------------- */
 

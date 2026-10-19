@@ -5,11 +5,11 @@
 // type:   "read" | "exercise" | "capstone"
 // level:  "easy" | "medium" | "hard"
 // status: "available" | "soon"
-// path:   for exercises, the folder under REPO_TREE
+// path:   for exercises, the file the student edits, relative to COURSE_URL
 
 // "HEAD" is GitHub's name for the default branch, so links follow it even if
-// the branch is renamed.
-window.REPO_TREE = "https://github.com/abhishekbarot/agent_harness/tree/HEAD/course";
+// the branch is renamed. "blob" because every link opens a single file.
+window.COURSE_URL = "https://github.com/abhishekbarot/agent_harness/blob/HEAD/course";
 
 window.CURRICULUM = [
   {
@@ -37,10 +37,10 @@ window.CURRICULUM = [
     title: "Tool use",
     summary: "How the model asks your code to act, and how your code answers.",
     items: [
-      { id: "ex-3-1", title: "3.1 Turn a tool result into an API block", type: "exercise", level: "easy", status: "available", path: "section03_tool_use" },
-      { id: "ex-3-2", title: "3.2 Validate a tool schema for strict mode", type: "exercise", level: "medium", status: "available", path: "section03_tool_use" },
-      { id: "ex-3-3", title: "3.3 A tool registry with a stable order", type: "exercise", level: "easy", status: "available", path: "section03_tool_use" },
-      { id: "ex-3-4", title: "3.4 Send every result back in one message", type: "exercise", level: "medium", status: "available", path: "section03_tool_use" },
+      { id: "ex-3-1", title: "3.1 Turn a tool result into an API block", type: "exercise", level: "easy", status: "available", path: "section03_tool_use/ex1_tool_result.py" },
+      { id: "ex-3-2", title: "3.2 Validate a tool schema for strict mode", type: "exercise", level: "medium", status: "available", path: "section03_tool_use/ex2_strict_schema.py" },
+      { id: "ex-3-3", title: "3.3 A tool registry with a stable order", type: "exercise", level: "easy", status: "available", path: "section03_tool_use/ex3_registry.py" },
+      { id: "ex-3-4", title: "3.4 Send every result back in one message", type: "exercise", level: "medium", status: "available", path: "section03_tool_use/ex4_batch_results.py" },
     ],
   },
   {
@@ -48,10 +48,10 @@ window.CURRICULUM = [
     title: "The agent loop",
     summary: "Read why the model stopped, run tools, and loop until it's done.",
     items: [
-      { id: "ex-4-1", title: "4.1 Pull the answer text out of a response", type: "exercise", level: "easy", status: "available", path: "section04_agent_loop" },
-      { id: "ex-4-2", title: "4.2 Map every stop_reason to the next move", type: "exercise", level: "medium", status: "available", path: "section04_agent_loop" },
-      { id: "ex-4-3", title: "4.3 Run tools without letting one failure stop the run", type: "exercise", level: "medium", status: "available", path: "section04_agent_loop" },
-      { id: "ex-4-4", title: "4.4 The full agent loop", type: "exercise", level: "hard", status: "available", path: "section04_agent_loop" },
+      { id: "ex-4-1", title: "4.1 Pull the answer text out of a response", type: "exercise", level: "easy", status: "available", path: "section04_agent_loop/ex1_text_of.py" },
+      { id: "ex-4-2", title: "4.2 Map every stop_reason to the next move", type: "exercise", level: "medium", status: "available", path: "section04_agent_loop/ex2_next_action.py" },
+      { id: "ex-4-3", title: "4.3 Run tools without letting one failure stop the run", type: "exercise", level: "medium", status: "available", path: "section04_agent_loop/ex3_dispatch_tools.py" },
+      { id: "ex-4-4", title: "4.4 The full agent loop", type: "exercise", level: "hard", status: "available", path: "section04_agent_loop/ex4_run_agent.py" },
       { id: "cap-1", title: "Capstone 1: a minimal agent", type: "capstone", level: "hard", status: "soon" },
     ],
   },
@@ -60,14 +60,14 @@ window.CURRICULUM = [
     title: "Tool safety and permissions",
     summary: "Treat model output as untrusted, and gate what actually runs.",
     items: [
-      { id: "ex-5-1", title: "5.1 Keep every path inside the workspace", type: "exercise", level: "medium", status: "available", path: "section05_safe_tools" },
-      { id: "ex-5-2", title: "5.2 Validate and cap a model-chosen timeout", type: "exercise", level: "easy", status: "available", path: "section05_safe_tools" },
-      { id: "ex-5-3", title: "5.3 Truncate long output, with a marker", type: "exercise", level: "easy", status: "available", path: "section05_safe_tools" },
-      { id: "ex-5-4", title: "5.4 A safe read_file tool", type: "exercise", level: "medium", status: "available", path: "section05_safe_tools" },
-      { id: "ex-6-1", title: "6.1 The permission table", type: "exercise", level: "easy", status: "available", path: "section06_permissions" },
-      { id: "ex-6-2", title: "6.2 Ask a person, deny without a terminal", type: "exercise", level: "medium", status: "available", path: "section06_permissions" },
-      { id: "ex-6-3", title: "6.3 The permission policy", type: "exercise", level: "hard", status: "available", path: "section06_permissions" },
-      { id: "ex-6-4", title: "6.4 Check every call, then run the approved ones", type: "exercise", level: "medium", status: "available", path: "section06_permissions" },
+      { id: "ex-5-1", title: "5.1 Keep every path inside the workspace", type: "exercise", level: "medium", status: "available", path: "section05_safe_tools/ex1_resolve_within.py" },
+      { id: "ex-5-2", title: "5.2 Validate and cap a model-chosen timeout", type: "exercise", level: "easy", status: "available", path: "section05_safe_tools/ex2_clamp_timeout.py" },
+      { id: "ex-5-3", title: "5.3 Truncate long output, with a marker", type: "exercise", level: "easy", status: "available", path: "section05_safe_tools/ex3_truncate.py" },
+      { id: "ex-5-4", title: "5.4 A safe read_file tool", type: "exercise", level: "medium", status: "available", path: "section05_safe_tools/ex4_read_file.py" },
+      { id: "ex-6-1", title: "6.1 The permission table", type: "exercise", level: "easy", status: "available", path: "section06_permissions/ex1_decide.py" },
+      { id: "ex-6-2", title: "6.2 Ask a person, deny without a terminal", type: "exercise", level: "medium", status: "available", path: "section06_permissions/ex2_console_approver.py" },
+      { id: "ex-6-3", title: "6.3 The permission policy", type: "exercise", level: "hard", status: "available", path: "section06_permissions/ex3_policy.py" },
+      { id: "ex-6-4", title: "6.4 Check every call, then run the approved ones", type: "exercise", level: "medium", status: "available", path: "section06_permissions/ex4_gated_dispatch.py" },
     ],
   },
   {

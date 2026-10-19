@@ -67,7 +67,7 @@ jobs:
       - name: Collect the site
         run: |
           mkdir _site
-          cp site/index.html site/styles.css site/app.js site/curriculum.js _site/
+          cp site/index.html site/styles.css site/app.js site/curriculum.js site/social.png _site/
           touch _site/.nojekyll
 
       - uses: actions/configure-pages@v5

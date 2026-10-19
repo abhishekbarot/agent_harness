@@ -5,6 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Agent Engineering Sheet</title>
   <meta name="description" content="A free, week-by-week path for students to learn AI agent engineering by building one from scratch, with offline graded exercises.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%239c4520'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+
+  <!-- Link previews (WhatsApp, LinkedIn, Slack, X). Image URLs must be absolute. -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Agent Engineering Sheet">
+  <meta property="og:title" content="Agent Engineering Sheet">
+  <meta property="og:description" content="Learn AI agent engineering by building one from scratch. A free, week-by-week path for students, with exercises graded on your own laptop.">
+  <meta property="og:url" content="https://abhishekbarot.github.io/agent_harness/">
+  <meta property="og:image" content="https://abhishekbarot.github.io/agent_harness/social.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Agent Engineering Sheet: learn AI agent engineering by building one from scratch.">
+  <meta name="twitter:card" content="summary_large_image">
+
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -14,7 +28,7 @@
     <div class="wrap">
       <div class="topbar">
         <span class="brand">Agent Engineering Sheet</span>
-        <button class="ghost" id="theme-toggle" type="button" aria-label="Switch color theme">Theme</button>
+        <button class="ghost" id="theme-toggle" type="button">Dark theme</button>
       </div>
       <h1>Learn AI agent engineering by building one from scratch.</h1>
       <p class="lede">
@@ -51,6 +65,9 @@
       </div>
     </div>
 
+    <noscript>
+      <p class="noscript">This sheet needs JavaScript to show the weeks and save your progress. Turn it on for this site, or browse the exercises directly on <a href="https://github.com/abhishekbarot/agent_harness/tree/HEAD/course">GitHub</a>.</p>
+    </noscript>
     <div id="weeks"></div>
     <p class="empty" id="empty" hidden>Nothing matches this filter yet.</p>
 
