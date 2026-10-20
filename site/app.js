@@ -6,9 +6,7 @@
   "use strict";
 
   const PROGRESS_KEY = "agent-sheet:progress:v1";
-  const THEME_KEY = "agent-sheet:theme";
   const weeks = window.CURRICULUM || [];
-  const courseUrl = window.COURSE_URL || "";
   const resetButton = document.getElementById("reset");
 
   const store = {
@@ -79,11 +77,9 @@
       !soon && item.path
         ? el("a", {
             class: "open",
-            href: `${courseUrl}/${item.path}`,
-            target: "_blank",
-            rel: "noopener",
-            "aria-label": `Open the file for exercise ${item.title} on GitHub`,
-            text: "Open ↗",
+            href: `workspace.html#${item.id}`,
+            "aria-label": `Open exercise ${item.title} in your workspace`,
+            text: "Open",
           })
         : null,
     );
@@ -221,25 +217,7 @@
     if (event.key === "Escape") showResetConfirm(false);
   });
 
-  // Theme: follow the system until the visitor picks one. The button names
-  // the theme it switches to, so it always says what a click will do.
-  const root = document.documentElement;
-  const themeButton = document.getElementById("theme-toggle");
-  const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
-  const currentTheme = () => root.dataset.theme || (systemDark.matches ? "dark" : "light");
-  const labelThemeButton = () => {
-    themeButton.textContent = currentTheme() === "dark" ? "Light theme" : "Dark theme";
-  };
-  const savedTheme = store.get(THEME_KEY, null);
-  if (savedTheme === "light" || savedTheme === "dark") root.dataset.theme = savedTheme;
-  themeButton.addEventListener("click", () => {
-    const next = currentTheme() === "dark" ? "light" : "dark";
-    root.dataset.theme = next;
-    store.set(THEME_KEY, next);
-    labelThemeButton();
-  });
-  systemDark.addEventListener("change", labelThemeButton);
-  labelThemeButton();
+  window.Theme.bind(document.getElementById("theme-toggle"));
 
   render();
 })();

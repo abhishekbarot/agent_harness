@@ -4,6 +4,10 @@ Hands-on exercises for the course. Each one is a Python file with a function to 
 
 **Everything runs offline.** The tests use a scripted fake model instead of the real Claude API, so you need no API key, there's no cost, and the results are the same on every run. The fake model can also produce situations a real model rarely shows on demand, like a refusal or a tool call cut off halfway, so you can test that your code handles them.
 
+## The quickest way: the workspace
+
+Every exercise also runs in the browser, in the [workspace](https://abhishekbarot.github.io/agent_harness/workspace.html). Open an exercise, write your code and press **Run tests**. It runs these same tests, with nothing to install. The rest of this page is for working on your own computer.
+
 ## Setup
 
 You need Python 3.10 or newer.

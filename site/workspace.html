@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Engineering Workspace</title>
+  <meta name="description" content="Write and test your agent engineering exercises in the browser. Your progress, code and streak in one place.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%239c4520'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Agent Engineering Sheet">
+  <meta property="og:title" content="Agent Engineering Workspace">
+  <meta property="og:description" content="Write and test agent engineering exercises in your browser, with no setup.">
+  <meta property="og:url" content="https://abhishekbarot.github.io/agent_harness/workspace.html">
+  <meta property="og:image" content="https://abhishekbarot.github.io/agent_harness/social.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+  <a class="skip" href="#view">Skip to the main area</a>
+
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Course">
+      <div class="sidebar-head">
+        <a class="brand" href="index.html">
+          <span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32" width="16" height="16"><path d="M8 16.5l5 5L24 10.5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span>Agent Engineering</span>
+        </a>
+        <button type="button" class="icon-button close-drawer" id="close-drawer" aria-label="Close menu">✕</button>
+      </div>
+
+      <nav class="nav" aria-label="Workspace">
+        <a class="nav-link" href="#dashboard" id="nav-dashboard">Dashboard</a>
+        <a class="nav-link" href="index.html">Curriculum sheet</a>
+      </nav>
+
+      <div class="tree" id="tree"></div>
+
+      <div class="account" id="account"></div>
+    </aside>
+    <div class="scrim" id="scrim" hidden></div>
+
+    <div class="main">
+      <header class="topbar">
+        <button type="button" class="icon-button open-drawer" id="open-drawer" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <p class="crumb" id="crumb"></p>
+        <button class="ghost" id="theme-toggle" type="button">Dark theme</button>
+      </header>
+      <p class="notice" id="notice" role="status" hidden></p>
+      <main class="view" id="view" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <noscript>
+    <p class="noscript">The workspace needs JavaScript to run your code and save your work. You can still do every exercise on your own computer: see the <a href="index.html">curriculum sheet</a>.</p>
+  </noscript>
+
+  <script src="theme.js"></script>
+  <script src="config.js"></script>
+  <script src="curriculum.js"></script>
+  <script src="store.js"></script>
+  <script src="runner.js"></script>
+  <script src="workspace.js"></script>
+</body>
+</html>

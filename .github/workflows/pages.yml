@@ -1,17 +1,19 @@
 name: Site
 
-# Publishes site/ to GitHub Pages from the repository's default branch. The
-# browser checks gate every deploy, and pull requests and other branches that
-# touch the site run the same checks without deploying.
+# Builds site/ (the curriculum sheet and the workspace, plus the course files
+# the workspace runs), checks that exact build in a browser, and publishes it
+# to GitHub Pages from the repository's default branch. Pull requests and other
+# branches that touch the site or the course run the same checks without
+# deploying.
 #
 # One-time setup: Settings -> Pages -> Build and deployment -> Source:
 # "GitHub Actions".
 
 on:
   push:
-    paths: ["site/**", ".github/workflows/pages.yml"]
+    paths: ["site/**", "course/**", ".github/workflows/pages.yml"]
   pull_request:
-    paths: ["site/**", ".github/workflows/pages.yml"]
+    paths: ["site/**", "course/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -29,17 +31,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Install Playwright and Chromium
+      # Pyodide and CodeMirror are installed so the checks serve them locally
+      # instead of depending on the CDNs during the run.
+      - name: Install Playwright, Chromium, Pyodide and CodeMirror
         run: |
-          npm install --no-save --no-package-lock playwright@1.56.1
+          npm install --no-save --no-package-lock playwright@1.56.1 pyodide@0.26.4 codemirror@5.65.16
           npx playwright install --with-deps chromium
 
-      - name: Browser checks
-        run: node site/check.cjs
+      # Builds _site: the pages, the course stubs and tests (never the
+      # solutions), and the pytest wheels, checked against their sha256.
+      - name: Build
+        run: python site/build.py _site
+
+      - name: Sheet checks
+        run: node site/check.cjs _site
+
+      - name: Workspace checks
+        run: node site/check-workspace.cjs _site
 
       - name: Keep screenshots from this run
         if: always()
@@ -48,6 +64,13 @@ jobs:
           name: site-screenshots
           path: site/screenshots/
           if-no-files-found: ignore
+
+      # Publish exactly the build that was just checked.
+      - name: Package the site for Pages
+        if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
 
   deploy:
     needs: check
@@ -61,20 +84,5 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-
-      # Publish only what the page serves -- not the test script or README.
-      - name: Collect the site
-        run: |
-          mkdir _site
-          cp site/index.html site/styles.css site/app.js site/curriculum.js site/social.png _site/
-          touch _site/.nojekyll
-
-      - uses: actions/configure-pages@v5
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
       - id: deployment
         uses: actions/deploy-pages@v4

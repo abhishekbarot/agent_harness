@@ -8,14 +8,13 @@
 // student does: load, tick items, reload, filter, reset, switch theme, use a
 // phone, use a browser that blocks storage, and use only the keyboard.
 
-const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright");
+const { serve, lowContrast, pngSize } = require("./check-server.cjs");
 
 const ROOT = __dirname;
 const SHOTS = path.join(ROOT, "screenshots");
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
 
 const failures = [];
 let passed = 0;
@@ -28,20 +27,6 @@ function check(name, ok, detail = "") {
     failures.push(name);
     console.log(`  FAIL  ${name}${detail ? ` -- ${detail}` : ""}`);
   }
-}
-
-function serve() {
-  const server = http.createServer((req, res) => {
-    const urlPath = decodeURIComponent(req.url.split("?")[0]);
-    const file = path.join(ROOT, urlPath === "/" ? "index.html" : urlPath);
-    if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-      res.writeHead(404).end("not found");
-      return;
-    }
-    res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream" });
-    fs.createReadStream(file).pipe(res);
-  });
-  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server)));
 }
 
 async function openPage(browser, url, options = {}) {
@@ -63,47 +48,14 @@ async function openPage(browser, url, options = {}) {
   return { context, page, errors };
 }
 
-// Every visible text element whose color falls below WCAG AA against the
-// background actually behind it (4.5:1, or 3:1 for large text).
-function lowContrast() {
-  const lum = (c) => {
-    const [r, g, b] = c.match(/[\d.]+/g).slice(0, 3).map((v) => {
-      v /= 255;
-      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  };
-  const bgOf = (n) => {
-    for (; n; n = n.parentElement) {
-      const c = getComputedStyle(n).backgroundColor;
-      if (c !== "transparent" && !/,\s*0\)$/.test(c)) return c;
-    }
-    return "rgb(255, 255, 255)";
-  };
-  const fails = [];
-  for (const n of document.querySelectorAll("body *")) {
-    if (![...n.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim())) continue;
-    const s = getComputedStyle(n);
-    if (s.display === "none" || s.visibility === "hidden" || !n.getClientRects().length) continue;
-    const [hi, lo] = [lum(s.color), lum(bgOf(n))].sort((a, b) => b - a);
-    const ratio = (hi + 0.05) / (lo + 0.05);
-    const large = parseFloat(s.fontSize) >= 24 || (parseFloat(s.fontSize) >= 18.66 && +s.fontWeight >= 700);
-    if (ratio < (large ? 3 : 4.5)) fails.push(`${n.textContent.trim().slice(0, 20)} ${ratio.toFixed(2)}:1`);
-  }
-  return [...new Set(fails)];
-}
-
-function pngSize(file) {
-  const head = fs.readFileSync(file).subarray(0, 24);
-  return [head.readUInt32BE(16), head.readUInt32BE(20)];
-}
-
 const count = (page) => page.locator("#progress-count").textContent();
 const box = (page, id) => page.locator(`input[data-id="${id}"]`);
 
 async function main() {
   fs.mkdirSync(SHOTS, { recursive: true });
-  const server = await serve();
+  // `node site/check.cjs _site` checks a build from site/build.py instead.
+  const built = process.argv[2] ? path.resolve(process.argv[2]) : null;
+  const server = await serve(built ? { site: built, course: path.join(built, "course") } : {});
   const url = `http://127.0.0.1:${server.address().port}/`;
   const browser = await chromium.launch();
 
@@ -150,18 +102,18 @@ async function main() {
         ),
       );
 
-      const links = await page.locator(".item a.open").evaluateAll((as) => as.map((a) => a.href));
-      check(`every available exercise links to GitHub (${links.length}/${total})`, links.length === total);
-      const fileRe = /github\.com\/[^/]+\/[^/]+\/blob\/HEAD\/course\/(section\d\d_[a-z_]+\/ex\d_[a-z_]+\.py)$/;
+      const links = await page.locator(".item a.open").evaluateAll((as) => as.map((a) => a.getAttribute("href")));
+      check(`every available exercise has an Open link (${links.length}/${total})`, links.length === total);
       check(
-        "each link opens that exercise's own file",
-        links.every((h) => fileRe.test(h)) && new Set(links).size === links.length,
-        links.find((h) => !fileRe.test(h)),
+        "each link opens that exercise in the workspace",
+        links.every((h, i) => h === `workspace.html#${data.available[i].id}`),
+        links.find((h, i) => h !== `workspace.html#${data.available[i].id}`),
       );
-      const missing = links
-        .map((h) => (h.match(fileRe) || [])[1])
-        .filter((rel) => !rel || !fs.existsSync(path.join(ROOT, "..", "course", rel)));
-      check("every linked exercise file exists in course/", missing.length === 0, missing.join(", "));
+      const missing = data.available
+        .filter((item) => !item.path || !fs.existsSync(path.join(ROOT, "..", "course", item.path)))
+        .map((item) => item.id);
+      check("every exercise's file exists in course/", missing.length === 0, missing.join(", "));
+      check("the hero links to the workspace", (await page.getAttribute(".cta a", "href")) === "workspace.html");
 
       const headings = await page.locator("h2.week-title").allTextContents();
       check("each week is a heading", headings.length === data.weeks, `${headings.length} headings`);

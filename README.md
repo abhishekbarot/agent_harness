@@ -208,6 +208,8 @@ src/agent_harness/
   cli.py             command line entry point
 evals/cases.json     the eval suite
 course/              graded course exercises built from this harness (offline)
+site/                curriculum sheet + in-browser workspace (GitHub Pages)
+supabase/            optional student accounts: schema and setup
 examples/            offline demo, no API key needed
 tests/               210 tests, no network
 ```
