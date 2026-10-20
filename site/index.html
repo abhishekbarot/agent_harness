@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Engineering Sheet</title>
+  <meta name="description" content="A free, week-by-week path for students to learn AI agent engineering by building one from scratch, with offline graded exercises.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%239c4520'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+
+  <!-- Link previews (WhatsApp, LinkedIn, Slack, X). Image URLs must be absolute. -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Agent Engineering Sheet">
+  <meta property="og:title" content="Agent Engineering Sheet">
+  <meta property="og:description" content="Learn AI agent engineering by building one from scratch. A free, week-by-week path for students, with exercises graded on your own laptop.">
+  <meta property="og:url" content="https://abhishekbarot.github.io/agent_harness/">
+  <meta property="og:image" content="https://abhishekbarot.github.io/agent_harness/social.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Agent Engineering Sheet: learn AI agent engineering by building one from scratch.">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#sheet">Skip to the sheet</a>
+
+  <header class="hero">
+    <div class="wrap">
+      <div class="topbar">
+        <span class="brand">Agent Engineering Sheet</span>
+        <div class="topbar-actions">
+          <a class="ghost" href="workspace.html">Workspace</a>
+          <button class="ghost" id="theme-toggle" type="button">Dark theme</button>
+        </div>
+      </div>
+      <h1>Learn AI agent engineering by building one from scratch.</h1>
+      <p class="lede">
+        A free, week-by-week path for students. Every exercise is graded by tests that run on
+        your own laptop: no API key, no cost.
+      </p>
+      <p class="cta"><a class="primary" href="workspace.html">Open your workspace</a> <span>Write and test every exercise in your browser. Nothing to install.</span></p>
+
+      <div class="progress-card" aria-live="polite">
+        <div class="progress-head">
+          <span class="progress-label">Your progress</span>
+          <span class="progress-count" id="progress-count">0 / 0</span>
+        </div>
+        <div class="bar" role="progressbar" id="progress-bar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Exercises completed">
+          <span id="progress-fill"></span>
+        </div>
+        <p class="progress-note" id="progress-note">Tick items off as you finish them. Progress is saved in this browser only.</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap" id="sheet">
+    <div class="toolbar">
+      <div class="filters" role="group" aria-label="Filter the sheet">
+        <button type="button" class="chip" data-filter="all" aria-pressed="true">All</button>
+        <button type="button" class="chip" data-filter="available" aria-pressed="false">Available now</button>
+        <button type="button" class="chip" data-filter="exercise" aria-pressed="false">Exercises</button>
+        <button type="button" class="chip" data-filter="capstone" aria-pressed="false">Capstones</button>
+      </div>
+      <button type="button" class="ghost" id="reset">Reset progress</button>
+      <div class="confirm" id="reset-confirm" role="group" aria-label="Confirm reset" hidden>
+        <span>Clear all your progress?</span>
+        <button type="button" class="danger" id="reset-yes">Clear progress</button>
+        <button type="button" class="ghost" id="reset-no">Keep it</button>
+      </div>
+    </div>
+
+    <noscript>
+      <p class="noscript">This sheet needs JavaScript to show the weeks and save your progress. Turn it on for this site, or browse the exercises directly on <a href="https://github.com/abhishekbarot/agent_harness/tree/HEAD/course">GitHub</a>.</p>
+    </noscript>
+    <div id="weeks"></div>
+    <p class="empty" id="empty" hidden>Nothing matches this filter yet.</p>
+
+    <section class="howto" aria-labelledby="howto-title">
+      <h2 id="howto-title">How the exercises work</h2>
+      <ol>
+        <li>Open an exercise. The task is at the top and the code is below it.</li>
+        <li>Replace the <code>NotImplementedError</code> line with your code.</li>
+        <li>Press <strong>Run tests</strong>. The real tests run in your browser, and the exercise is ticked off here when they all pass.</li>
+      </ol>
+      <p class="howto-note">Prefer your own editor? Clone the repo, run <code>pip install pytest</code>, and run <code>pytest course/section03_tool_use</code> on your laptop instead.</p>
+    </section>
+  </main>
+
+  <footer class="wrap footer">
+    <p>Free and open. Exercises are built from <a href="https://github.com/abhishekbarot/agent_harness">agent_harness</a>.</p>
+  </footer>
+
+  <script src="theme.js"></script>
+  <script src="curriculum.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

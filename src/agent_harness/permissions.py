@@ -70,7 +70,9 @@ class ConsoleApprover:
                 "re-run with permission_mode='auto' to allow it"
             )
 
-        print(f"\n  Tool call: {tool.name}  [{tool.risk.value}]", file=sys.stderr)
+        print(
+            f"\n  Tool call: {tool.name}  [{tool.risk_for(tool_input).value}]", file=sys.stderr
+        )
         for key, value in tool_input.items():
             rendered = str(value)
             if len(rendered) > 500:
@@ -115,12 +117,13 @@ class PermissionPolicy:
         if self.mode == "auto":
             return Decision.allow("permission mode is 'auto'")
 
-        if tool.risk is Risk.READ_ONLY:
+        risk = tool.risk_for(tool_input)
+        if risk is Risk.READ_ONLY:
             return Decision.allow("read-only tool")
 
         if self.mode == "readonly":
             return Decision.deny(
-                f"{tool.name} is a {tool.risk.value} tool and the harness is in "
+                f"{tool.name} is a {risk.value} call and the harness is in "
                 "read-only mode"
             )
 

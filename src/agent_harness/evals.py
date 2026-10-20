@@ -97,6 +97,14 @@ def _file_unchanged(result: RunResult, workspace: Path, spec: dict[str, Any]):
     return same, f"{spec['path']} {'unchanged' if same else 'modified'}"
 
 
+def _plan_completed(result: RunResult, workspace: Path, spec: dict[str, Any]):
+    """The feedback check: the agent finished every step it said it would."""
+    if not result.plan:
+        return False, "no plan was recorded"
+    open_steps = [s.step for s in result.plan if s.status != "completed"]
+    return not open_steps, f"open steps={open_steps}"
+
+
 GRADERS: dict[str, Grader] = {
     "completed": _completed,
     "tool_called": _tool_called,
@@ -108,6 +116,7 @@ GRADERS: dict[str, Grader] = {
     "file_exists": _file_exists,
     "file_contains": _file_contains,
     "file_unchanged": _file_unchanged,
+    "plan_completed": _plan_completed,
 }
 
 

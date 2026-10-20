@@ -1,0 +1,88 @@
+name: Site
+
+# Builds site/ (the curriculum sheet and the workspace, plus the course files
+# the workspace runs), checks that exact build in a browser, and publishes it
+# to GitHub Pages from the repository's default branch. Pull requests and other
+# branches that touch the site or the course run the same checks without
+# deploying.
+#
+# One-time setup: Settings -> Pages -> Build and deployment -> Source:
+# "GitHub Actions".
+
+on:
+  push:
+    paths: ["site/**", "course/**", ".github/workflows/pages.yml"]
+  pull_request:
+    paths: ["site/**", "course/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time. A newer push queues behind a running deploy rather
+# than cancelling it, so Pages never ends up half-published.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Pyodide and CodeMirror are installed so the checks serve them locally
+      # instead of depending on the CDNs during the run.
+      - name: Install Playwright, Chromium, Pyodide and CodeMirror
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1 pyodide@0.26.4 codemirror@5.65.16
+          npx playwright install --with-deps chromium
+
+      # Builds _site: the pages, the course stubs and tests (never the
+      # solutions), and the pytest wheels, checked against their sha256.
+      - name: Build
+        run: python site/build.py _site
+
+      - name: Sheet checks
+        run: node site/check.cjs _site
+
+      - name: Workspace checks
+        run: node site/check-workspace.cjs _site
+
+      - name: Keep screenshots from this run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-screenshots
+          path: site/screenshots/
+          if-no-files-found: ignore
+
+      # Publish exactly the build that was just checked.
+      - name: Package the site for Pages
+        if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: check
+    # Only the default branch deploys, whatever it is named.
+    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

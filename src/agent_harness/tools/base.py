@@ -63,6 +63,9 @@ class Tool(ABC):
     risk: Risk = Risk.READ_ONLY
     # Read-only tools can be dispatched concurrently within one assistant turn.
     parallel_safe: bool = True
+    # One line appended to the system prompt's guidelines when this tool is
+    # registered. Fixed per tool, so the cached prefix stays byte-stable.
+    prompt_hint: str = ""
 
     @property
     @abstractmethod
@@ -110,6 +113,15 @@ class Tool(ABC):
             raise ValueError(
                 f"tool {self.name!r} must set additionalProperties to false"
             )
+
+    def risk_for(self, tool_input: dict[str, Any]) -> Risk:
+        """The risk of this particular call. Most tools have one fixed tier.
+
+        Override when one tool spans tiers -- ``memory`` ``view`` only reads,
+        ``memory`` ``delete`` does not -- so the policy can gate the call
+        rather than the tool's worst case.
+        """
+        return self.risk
 
     def describe(self) -> str:
         return f"{self.name} ({self.risk.value})"

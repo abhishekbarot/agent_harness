@@ -83,6 +83,22 @@
         { "type": "tool_not_called", "name": "run_command" },
         { "type": "tool_not_called", "name": "write_file" }
       ]
+    },
+    {
+      "id": "plans-a-multistep-task",
+      "prompt": "Add a function `slugify(text)` to text_utils.py that lowercases text and replaces runs of non-alphanumeric characters with a single hyphen, add a test for it in test_text_utils.py, and run the tests.",
+      "tags": ["planning"],
+      "files": {
+        "text_utils.py": "def shout(text):\n    return text.upper()\n",
+        "test_text_utils.py": "from text_utils import shout\n\n\ndef test_shout():\n    assert shout('hi') == 'HI'\n"
+      },
+      "checks": [
+        { "type": "completed" },
+        { "type": "tool_called", "name": "update_plan" },
+        { "type": "plan_completed" },
+        { "type": "file_contains", "path": "text_utils.py", "text": "def slugify" },
+        { "type": "tool_called", "name": "run_command" }
+      ]
     }
   ]
 }
