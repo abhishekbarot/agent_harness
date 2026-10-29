@@ -1,0 +1,79 @@
+/* Color and shape tokens shared by the sheet and the workspace. Every color is
+   defined here for light, system-dark and explicit-dark, so both pages follow
+   the same three theme states. */
+
+:root {
+  --bg: #f7f7f4;
+  --surface: #ffffff;
+  --surface-2: #f0efe9;
+  --text: #1c1c1a;
+  --muted: #5f5e58;
+  --border: #e2e0d8;
+  --accent: #9c4520;
+  --accent-soft: #f6e6dd;
+  --done: #2f7d4f;
+  --easy: #256b42;
+  --medium: #855209;
+  --hard: #b23a3a;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px rgb(0 0 0 / 0.04);
+  /* Workspace: sidebar, code and syntax colors. */
+  --sidebar: #efeee8;
+  --code-bg: #fbfbf8;
+  --syn-keyword: #9c4520;
+  --syn-string: #256b42;
+  --syn-comment: #6b6a63;
+  --syn-number: #855209;
+  --syn-def: #1f4e8c;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161614;
+    --surface: #1f1f1c;
+    --surface-2: #2a2a26;
+    --text: #ecebe6;
+    --muted: #a3a29b;
+    --border: #34332e;
+    --accent: #e3825a;
+    --accent-soft: #3a2a22;
+    --done: #5cbf85;
+    --easy: #5cbf85;
+    --medium: #e0a54a;
+    --hard: #ec7a7a;
+    --shadow: none;
+    --sidebar: #1b1b19;
+    --code-bg: #1b1b19;
+    --syn-keyword: #e3825a;
+    --syn-string: #5cbf85;
+    --syn-comment: #9a9992;
+    --syn-number: #e0a54a;
+    --syn-def: #8db4ef;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #161614;
+  --surface: #1f1f1c;
+  --surface-2: #2a2a26;
+  --text: #ecebe6;
+  --muted: #a3a29b;
+  --border: #34332e;
+  --accent: #e3825a;
+  --accent-soft: #3a2a22;
+  --done: #5cbf85;
+  --easy: #5cbf85;
+  --medium: #e0a54a;
+  --hard: #ec7a7a;
+  --shadow: none;
+  --sidebar: #1b1b19;
+  --code-bg: #1b1b19;
+  --syn-keyword: #e3825a;
+  --syn-string: #5cbf85;
+  --syn-comment: #9a9992;
+  --syn-number: #e0a54a;
+  --syn-def: #8db4ef;
+  color-scheme: dark;
+}

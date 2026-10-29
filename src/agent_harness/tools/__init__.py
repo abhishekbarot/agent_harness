@@ -9,9 +9,13 @@ from .builtin import (
     WriteFileTool,
     default_tools,
 )
+from .memory import MemoryTool
+from .planning import PlanStep, UpdatePlanTool
 
 __all__ = [
     "ListDirTool",
+    "MemoryTool",
+    "PlanStep",
     "ReadFileTool",
     "Risk",
     "RunCommandTool",
@@ -19,6 +23,7 @@ __all__ = [
     "Tool",
     "ToolRegistry",
     "ToolResult",
+    "UpdatePlanTool",
     "WriteFileTool",
     "default_tools",
 ]

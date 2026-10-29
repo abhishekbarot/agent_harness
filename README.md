@@ -44,7 +44,23 @@ Credentials resolve in the SDK's own order — `ANTHROPIC_API_KEY`, then `ANTHRO
 
 ---
 
-## The six concepts
+## The anatomy of an agent
+
+*AI Agents in Action* (Micheal Lanham, Manning) breaks an agent into five components around the model. Anthropic's ["Building effective agents"](https://www.anthropic.com/engineering/building-effective-agents) describes the same thing from the API side: an *augmented LLM* (a model plus retrieval, tools and memory) running in a loop, getting "ground truth" from its environment at each step. Here is where each component lives in this harness:
+
+| Component (book) | What it is | In this harness |
+|---|---|---|
+| **Profile / persona** | Who the agent is: role, standards, boundaries | `profiles.py`, `--profile` (§7) |
+| **Actions / tools** | What it can do to the world | `tools/`, the permission gate (§2, §3) |
+| **Knowledge / memory** | What it knows, within a run and across runs | context strategies (§4), the memory tool (§9) |
+| **Reasoning / evaluation** | Thinking through a step, judging the result | adaptive thinking, `--effort`, evals (§6) |
+| **Planning / feedback** | Breaking a task into steps and adjusting as results come in | `update_plan` (§8), tool results fed back into the loop (§1) |
+
+The book also describes a ladder of how much autonomy you hand over: calling the model directly, an assistant that acts for you with approval, and an autonomous agent that decides and acts on its own. Here that ladder is the `--permission-mode` setting: `deny` and `readonly` sit at the bottom, `ask` keeps a human approving every write, and `auto` is fully autonomous. Anthropic's advice matches the book's: **start at the simplest level that works.** Choose an agent only when the task is open-ended, the outcome is worth the cost, and mistakes can be caught and undone.
+
+---
+
+## The concepts
 
 ### 1. The loop
 
@@ -126,11 +142,50 @@ python evals/run_eval.py --tag safety         # one slice
 python evals/run_eval.py --json report.json   # machine-readable
 ```
 
-Graders: `completed`, `tool_called`, `tool_not_called`, `max_tool_calls`, `no_denied`, `no_tool_errors`, `text_matches`, `file_exists`, `file_contains`, `file_unchanged`.
+Graders: `completed`, `tool_called`, `tool_not_called`, `max_tool_calls`, `no_denied`, `no_tool_errors`, `text_matches`, `file_exists`, `file_contains`, `file_unchanged`, `plan_completed`.
 
 Two are worth calling out. `max_tool_calls` catches flailing — a run that gets the right answer after fifteen redundant reads is a regression. `file_unchanged` catches collateral damage — the agent editing something it was never asked to touch.
 
 > Eval runs make real API calls and cost real money. Per-case and total cost is printed at the end of every run.
+
+### 7. Profile
+
+The profile is the agent's persona: its role, its standards, what it should and shouldn't do. It sits at the top of the system prompt. Changing the profile changes how the agent behaves without touching the loop or the tools.
+
+```bash
+agent-harness --profile reviewer --permission-mode readonly "review src/agent_harness/loop.py"
+agent-harness --profile ./profiles/release-manager.md "prepare the 0.2.0 release notes"
+```
+
+The built-in profiles are `engineer` (the default), `reviewer` and `explainer`. Any other value is read as the path to a text or Markdown file. A profile describes behavior, not permissions. The `reviewer` profile tells the model not to edit files, but `--permission-mode readonly` is what actually stops it. If a boundary matters, enforce it in the harness. Don't rely on the prompt alone.
+
+The profile is resolved once at startup. A bad profile fails before any API client is built, and the result becomes part of the cached prefix.
+
+### 8. Planning
+
+Adaptive thinking already lets the model plan privately, one turn at a time. What it doesn't give the harness is a plan the harness can *see*. `update_plan` provides one. The model sends the complete plan each time it changes, marking each step `pending`, `in_progress` or `completed`. The harness keeps the latest version on `RunResult.plan` and prints progress in the run summary (`plan 3/4`).
+
+It closes the feedback loop the book describes. The `plan_completed` eval grader fails a run whose agent stopped with steps still open. That catches an agent that *says* it's done when its own plan shows it isn't.
+
+The plan lives in tool results inside the transcript, never in the system prompt. Rewriting the system prompt on every update would invalidate the prompt cache on every request. The tool is read-only (it touches nothing outside the run), so it never needs approval. Turn it off with `--no-plan`.
+
+### 9. Memory
+
+Context strategies (§4) manage what the model remembers *within* a run. Memory covers what survives *between* runs.
+
+```bash
+agent-harness --memory-dir ~/.agent-memory/myproject "pick up where we left off"
+```
+
+This is Claude's own [memory tool](https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool) (`memory_20250818`). The request declares only its type and name, and the model already knows the commands: `view`, `create`, `str_replace`, `insert`, `delete`, `rename`. The model works with files under a virtual `/memories` directory, and `tools/memory.py` maps that onto `--memory-dir`. The same confinement rules apply as for every other tool. A memory path is model output, so `..`, paths outside `/memories` and symlinks that lead out of the store are all rejected. Individual files are capped in size, because memory is read back into the context window.
+
+Memory is per call, not per tool, when it comes to risk. `view` is read-only and every other command is a write, so `readonly` mode lets the agent read its notes but not change them. (`Tool.risk_for` is the hook that makes this work for any tool whose calls fall into different tiers.)
+
+Memory is off unless you set `--memory-dir`. Keep it outside the workspace if the agent shouldn't be able to reach its own notes through `write_file`, and don't let it store secrets there.
+
+### Tool hints in the system prompt
+
+Each tool can carry a one-line `prompt_hint`, added to the system prompt's guidelines when that tool is registered. That's how the plan and memory guidance reaches the model only when those tools are switched on. The hints are fixed strings, rendered in registry order, so the prefix stays byte-stable across turns.
 
 ---
 
@@ -142,6 +197,9 @@ src/agent_harness/
   model.py           Messages API backend, request shape, system prompt
   tools/base.py      Tool protocol, risk tiers, registry
   tools/builtin.py   filesystem + shell tools, path confinement
+  tools/planning.py  update_plan: the model's plan, visible to the harness
+  tools/memory.py    backend for Claude's memory tool, confined to --memory-dir
+  profiles.py        built-in and file-based agent profiles
   permissions.py     the permission gate and approvers
   config.py          frozen configuration
   usage.py           token accounting and cost
@@ -149,8 +207,11 @@ src/agent_harness/
   session.py         transcript persistence
   cli.py             command line entry point
 evals/cases.json     the eval suite
+course/              graded course exercises built from this harness (offline)
+site/                curriculum sheet + in-browser workspace (GitHub Pages)
+supabase/            optional student accounts: schema and setup
 examples/            offline demo, no API key needed
-tests/               163 tests, no network
+tests/               210 tests, no network
 ```
 
 ## Development
@@ -174,6 +235,9 @@ Every flag has an `AGENT_*` environment variable (see `.env.example`). Precedenc
 | `--max-turns` | `25` |
 | `--permission-mode` | `ask` |
 | `--context-strategy` | `clear_tool_uses` |
+| `--profile` | `engineer` |
+| `--memory-dir` | unset (memory off) |
+| `--no-plan` | planning on |
 
 Thinking is adaptive — the model decides depth per turn and interleaves reasoning between tool calls. There's no token budget to tune; depth is controlled through `--effort`.
 

@@ -33,10 +33,13 @@ from .errors import (
     ToolError,
 )
 from .logging_setup import get_logger
-from .model import DEFAULT_INSTRUCTIONS, AnthropicBackend, ModelBackend, build_system_prompt
+from .model import AnthropicBackend, ModelBackend, build_system_prompt
 from .permissions import PermissionPolicy, build_policy
+from .profiles import load_profile
 from .tools.base import Tool, ToolRegistry, ToolResult
 from .tools.builtin import default_tools
+from .tools.memory import MemoryTool
+from .tools.planning import PlanStep, UpdatePlanTool
 from .usage import Usage
 
 log = get_logger("loop")
@@ -66,6 +69,8 @@ class RunResult:
     usage: Usage
     tool_calls: list[ToolCallRecord] = field(default_factory=list)
     duration_s: float = 0.0
+    # The latest plan the model recorded with update_plan, if any.
+    plan: list[PlanStep] = field(default_factory=list)
 
     @property
     def completed(self) -> bool:
@@ -78,6 +83,8 @@ class RunResult:
             "completed": self.completed,
             "tool_calls": len(self.tool_calls),
             "denied_calls": sum(1 for c in self.tool_calls if not c.allowed),
+            "plan_steps": len(self.plan),
+            "plan_completed": sum(1 for s in self.plan if s.status == "completed"),
             "duration_s": round(self.duration_s, 2),
             **self.usage.summary(model),
         }
@@ -93,17 +100,29 @@ class Agent:
         backend: ModelBackend | None = None,
         tools: list[Tool] | None = None,
         policy: PermissionPolicy | None = None,
-        instructions: str = DEFAULT_INSTRUCTIONS,
+        instructions: str | None = None,
     ) -> None:
         self.config = config or Config()
-        self.registry = ToolRegistry(
-            tools if tools is not None else default_tools(
-                self.config.workspace, self.config.denied_commands
-            )
-        )
+        # Resolve the profile first, so a bad one fails before any client is built.
+        if instructions is None:
+            instructions = load_profile(self.config.profile)
+        self.registry = ToolRegistry(tools if tools is not None else self._default_tools())
         self.policy = policy or build_policy(self.config.permission_mode)
         self.backend = backend or AnthropicBackend(self.config)
-        self.system = build_system_prompt(instructions, str(self.config.workspace))
+        self.system = build_system_prompt(
+            instructions,
+            str(self.config.workspace),
+            hints=[tool.prompt_hint for tool in self.registry],
+        )
+
+    def _default_tools(self) -> list[Tool]:
+        """Filesystem tools, then planning, then memory -- always in that order."""
+        tools = default_tools(self.config.workspace, self.config.denied_commands)
+        if self.config.planning:
+            tools.append(UpdatePlanTool())
+        if self.config.memory_dir is not None:
+            tools.append(MemoryTool(self.config.memory_dir))
+        return tools
 
     # -- the loop ---------------------------------------------------------
 
@@ -140,6 +159,7 @@ class Agent:
                 usage=usage,
                 tool_calls=calls,
                 duration_s=time.monotonic() - started,
+                plan=self._current_plan(),
             )
 
         log.info(
@@ -342,6 +362,10 @@ class Agent:
             },
         )
         return result
+
+    def _current_plan(self) -> list[PlanStep]:
+        planner = self.registry.get(UpdatePlanTool.name)
+        return list(planner.steps) if isinstance(planner, UpdatePlanTool) else []
 
     # -- budgets ----------------------------------------------------------
 

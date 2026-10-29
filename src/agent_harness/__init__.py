@@ -17,21 +17,34 @@ from .errors import (
 )
 from .loop import Agent, RunResult, ToolCallRecord
 from .permissions import Decision, PermissionPolicy, auto_approve, build_policy
-from .tools import Risk, Tool, ToolRegistry, ToolResult, default_tools
+from .profiles import BUILTIN_PROFILES, load_profile
+from .tools import (
+    MemoryTool,
+    PlanStep,
+    Risk,
+    Tool,
+    ToolRegistry,
+    ToolResult,
+    UpdatePlanTool,
+    default_tools,
+)
 from .usage import Usage
 
 __version__ = "0.1.0"
 
 __all__ = [
     "Agent",
+    "BUILTIN_PROFILES",
     "BudgetExceededError",
     "Config",
     "ConfigError",
     "Decision",
     "HarnessError",
     "LoopError",
+    "MemoryTool",
     "PermissionDeniedError",
     "PermissionPolicy",
+    "PlanStep",
     "RefusalError",
     "Risk",
     "RunResult",
@@ -40,9 +53,11 @@ __all__ = [
     "ToolError",
     "ToolRegistry",
     "ToolResult",
+    "UpdatePlanTool",
     "Usage",
     "__version__",
     "auto_approve",
     "build_policy",
     "default_tools",
+    "load_profile",
 ]

@@ -25,7 +25,7 @@ jobs:
         run: python -m pip install --upgrade pip && pip install -e ".[dev]"
 
       - name: Lint
-        run: ruff check src tests evals examples
+        run: ruff check src tests evals examples course site
 
       - name: Type check
         run: mypy
@@ -37,3 +37,11 @@ jobs:
 
       - name: Offline demo
         run: python examples/offline_demo.py
+
+      # The course exercises are generated from the reference solutions, and
+      # graded by the same tests students run.
+      - name: Course stubs are up to date
+        run: python course/make_stubs.py --check
+
+      - name: Course tests pass on the reference solutions
+        run: COURSE_SOLUTIONS=1 pytest course

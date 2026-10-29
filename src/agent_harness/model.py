@@ -11,6 +11,7 @@ for it; ``.get_final_message()`` gives the same complete response either way.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any, Protocol, runtime_checkable
 
 from .config import Config
@@ -108,13 +109,17 @@ class AnthropicBackend:
             return stream.get_final_message()
 
 
-def build_system_prompt(instructions: str, workspace: str) -> list[dict[str, Any]]:
+def build_system_prompt(
+    instructions: str, workspace: str, hints: Iterable[str] = ()
+) -> list[dict[str, Any]]:
     """Build the system prompt as a single cacheable block.
 
     The explicit ``cache_control`` breakpoint here is what makes the prefix
     reusable across turns. Keep this text byte-stable for the whole run:
     interpolating a timestamp, a UUID, or anything else that varies invalidates
     the cache on every single request and the hit rate silently sits at zero.
+
+    ``hints`` are the registered tools' one-line guidelines, in registry order.
     """
     text = (
         f"{instructions}\n\n"
@@ -128,10 +133,8 @@ def build_system_prompt(instructions: str, workspace: str) -> list[dict[str, Any
         "propose a different approach.\n"
         "- When the task is complete, say so plainly and stop calling tools."
     )
+    for hint in hints:
+        if hint:
+            text += f"\n- {hint}"
     return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
 
-
-DEFAULT_INSTRUCTIONS = (
-    "You are a careful software engineering agent. You work in small, verifiable "
-    "steps and you check your work with the tools available to you."
-)
